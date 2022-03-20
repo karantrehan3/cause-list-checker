@@ -4,13 +4,13 @@
   "description": "The project searches for a keyword through all the cause list pdf files on a particular date.",
   "main": "src/app.js",
   "scripts": {
-    "coverage-html": "cross-env NODE_ENV=localhost nyc --reporter=html mocha --recursive --exit --timeout 10000",
-    "start": "node src/server.js",
-    "start-local": "cross-env NODE_ENV=localhost nodemon --inspect src/server.js",
+    "coverage-html": "cross-env NODE_ENV=localhost nyc --reporter=html mocha --recursive --exit --timeout 20000",
+    "start": "node src/app.js",
+    "start-local": "cross-env NODE_ENV=localhost nodemon --inspect src/app.js",
     "pretty-quick": "pretty-quick",
     "prepare": "husky install",
     "pre-commit": "lint-staged",
-    "test": "cross-env NODE_ENV=localhost mocha --recursive --exit --timeout 10000",
+    "test": "cross-env NODE_ENV=localhost mocha --recursive --exit --timeout 20000",
     "lint-staged": "lint-staged"
   },
   "repository": {
@@ -63,7 +63,6 @@
     "sinon": "^13.0.1"
   },
   "dependencies": {
-    "cheerio": "^1.0.0-rc.10",
-    "node-fetch": "^3.2.3"
+    "selenium-webdriver": "^4.1.1"
   }
 }
