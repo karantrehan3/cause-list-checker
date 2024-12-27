@@ -25,16 +25,21 @@ class Scraper:
         soup = BeautifulSoup(page_html, "html.parser")
 
         rows = soup.select("table#tables11 tr")
-        pdf_links = []
+        pdf_links = {}
 
-        for row in rows:
-            link = row.find("a", href=True)
-            if link:
-                pdf_url = link["onclick"].split("'")[
-                    1
-                ]  # Extracting the URL from onclick
-                pdf_links.append(
-                    urljoin(self.base_url, pdf_url)
-                )  # Make it an absolute URL
+        for row in rows[2:]:  # Skip the header rows
+            cells = row.find_all("td")
+            if len(cells) == 3:
+                link = cells[0].find("a", href=True)
+                list_type = cells[1].text.strip()
+                main_sup = cells[2].text.strip()
+
+                if link:
+                    pdf_url = link["onclick"].split("'")[
+                        1
+                    ]  # Extracting the URL from onclick
+                    pdf_url = urljoin(self.base_url, pdf_url)  # Make it an absolute URL
+                    pdf_name = f"{date}__{list_type}__{main_sup}"
+                    pdf_links[pdf_name] = pdf_url
 
         return pdf_links
