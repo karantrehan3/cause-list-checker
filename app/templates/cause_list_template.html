@@ -44,35 +44,6 @@
         th {
             background-color: #f2f2f2;
         }
-
-        @media (max-width: 600px) {
-
-            table,
-            th,
-            td {
-                width: 100%;
-                display: block;
-            }
-
-            th,
-            td {
-                box-sizing: border-box;
-                width: 100%;
-                display: block;
-                text-align: left;
-            }
-
-            th {
-                background-color: #f2f2f2;
-                padding-top: 10px;
-                padding-bottom: 10px;
-            }
-
-            td {
-                padding-top: 10px;
-                padding-bottom: 10px;
-            }
-        }
     </style>
 </head>
 
@@ -103,8 +74,6 @@
         {% else %}
         <h3>❌ No results found for the search term '<u>{{search_term}}</u>'.</h3>
         {% endif %}
-        <br>
-        <br>
         <h2>Cause Lists Searched</h2>
         <table>
             <thead>
