@@ -1,12 +1,12 @@
-from app.scraper import Scraper
-from app.pdf_searcher import PDFSearcher
-from app.emailer import Emailer
-from app.error_handler import ErrorHandler
 from fastapi import HTTPException
 from datetime import datetime, timedelta
 import os
 import json
 from typing import List, Dict, Any, Optional
+from app.managers.scraper import Scraper
+from app.managers.pdf_searcher import PDFSearcher
+from app.services.emailer import Emailer
+from app.utils.error_handler import ErrorHandler
 
 
 async def scrape_search_and_notify(
