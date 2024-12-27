@@ -36,8 +36,9 @@ class PDFSearcher:
                 text = page.get_text()
                 if text and self.search_term.lower() in text.lower():
                     found_pages.append(page_num + 1)  # Page numbers are 1-based
-            
+
             document.close()
+            del document
 
         response.close()
 
