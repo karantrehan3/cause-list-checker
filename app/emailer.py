@@ -10,7 +10,7 @@ load_dotenv()
 
 
 class Emailer:
-    def __init__(self):
+    def __init__(self) -> None:
         self.sender_email = os.getenv("SENDER_EMAIL")
         self.sender_password = os.getenv("SENDER_PASSWORD")
         self.sender_name = os.getenv("SENDER_NAME")
@@ -18,7 +18,7 @@ class Emailer:
         self.smtp_port = int(os.getenv("SMTP_PORT"))
         self.env = Environment(loader=FileSystemLoader("app/templates"))
 
-    def send_email(self, recipients, subject, template_name, context):
+    def send_email(self, recipients, subject, template_name, context) -> None:
         # Create the email
         msg = MIMEMultipart()
         msg["From"] = f"{self.sender_name} <{self.sender_email}>"
