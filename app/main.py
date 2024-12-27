@@ -7,6 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 import os
 import json
+from typing import List, Dict, Any, Optional
 
 app = FastAPI()
 
@@ -41,28 +42,17 @@ async def init_scraping_and_notification(search_term: str, date: Optional[str] =
     try:
         # Step 1: Scrape the page and get PDF links
         pdfs = scraper.parse_table_and_download_pdfs(date)
+        if not pdfs:
+            send_email(emailer, email_list, search_term, date, pdfs, [])
+            return {"message": "No Cause Lists found"}
 
         # Step 2: Search for the term in the PDFs
         results = searcher.search_pdf(pdfs)
 
-        print(json.dumps(results, indent=4))
+        print("PDF Search Results: ", json.dumps(results, indent=4))
 
         # Step 3: If results found, send an email notification
-        context = {
-            "search_term": search_term,
-            "date": date,
-            "results": results,
-            "pdfs": pdfs,
-        }
-        try:
-            emailer.send_email(
-                recipients=email_list,
-                subject=f"Cause List Search Results for '{search_term}' on { date }",
-                template_name="cause_list_template.html",
-                context=context,
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error sending email: {e}")
+        send_email(emailer, email_list, search_term, date, pdfs, results)
 
         return {"message": "Search completed and email sent!", "results": results}
 
@@ -71,3 +61,28 @@ async def init_scraping_and_notification(search_term: str, date: Optional[str] =
             e, {"search_term": search_term, "date": date}
         )
         raise HTTPException(status_code=500, detail=error_message)
+
+
+def send_email(
+    emailer: Emailer,
+    email_list: List[str],
+    search_term: str,
+    date: str,
+    pdfs: List[Dict[str, str]],
+    results: List[Dict[str, Any]],
+):
+    context = {
+        "search_term": search_term,
+        "date": date,
+        "results": results,
+        "pdfs": pdfs,
+    }
+    try:
+        emailer.send_email(
+            recipients=email_list,
+            subject=f"Cause List Search Results for '{search_term}' on {date}",
+            template_name="cause_list_template.html",
+            context=context,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sending email: {e}")

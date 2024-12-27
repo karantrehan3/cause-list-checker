@@ -44,11 +44,22 @@
         th {
             background-color: #f2f2f2;
         }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5em;
+                font-weight: bold;
+            }
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
+        {% if not pdfs %}
+        <h1>Cause List Search Results for '<u>{{search_term}}</u>' on {{ date }}</h1>
+        <h3>⚠️ No Cause Lists Found today</h3>
+        {% else %}
         <h1>Cause List Search Results for '<u>{{search_term}}</u>' on {{ date }}</h1>
         {% if results %}
         <h3>✅ Search results found.</h3>
@@ -72,8 +83,10 @@
             </tbody>
         </table>
         {% else %}
-        <h3>❌ No results found for the search term '<u>{{search_term}}</u>'.</h3>
+        <h3>❌ No search results found.</h3>
         {% endif %}
+        <br>
+        <br>
         <h2>Cause Lists Searched</h2>
         <table>
             <thead>
@@ -92,6 +105,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        {% endif %}
     </div>
 </body>
 
