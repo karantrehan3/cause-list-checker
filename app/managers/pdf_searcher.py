@@ -1,8 +1,6 @@
-import PyPDF2
+import pypdf
 import requests
 from io import BytesIO
-import time
-import random
 from typing import List, Dict, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -28,7 +26,7 @@ class PDFSearcher:
         found_pages = []
         # Read the PDF from memory
         with BytesIO(response.content) as pdf_file:
-            reader = PyPDF2.PdfReader(pdf_file)
+            reader = pypdf.PdfReader(pdf_file)
 
             # Search for the term in each page
             for page_num, page in enumerate(reader.pages):
@@ -44,7 +42,7 @@ class PDFSearcher:
 
     def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         results = []
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_pdf = {
                 executor.submit(self.fetch_and_search_pdf, pdf): pdf for pdf in pdfs
             }
