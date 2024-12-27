@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: cause-list-checker
+    ports:
+      - "3080:3080"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
