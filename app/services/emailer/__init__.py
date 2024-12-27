@@ -2,11 +2,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
-from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
-
-# Load environment variables from .env
-load_dotenv()
 
 
 class Emailer:
@@ -16,7 +12,9 @@ class Emailer:
         self.sender_name = os.getenv("SENDER_NAME")
         self.smtp_server = os.getenv("SMTP_SERVER")
         self.smtp_port = int(os.getenv("SMTP_PORT"))
-        self.env = Environment(loader=FileSystemLoader("app/templates"))
+        self.env = Environment(
+            loader=FileSystemLoader("app/services/emailer/templates")
+        )
 
     def send_email(self, recipients, subject, template_name, context) -> None:
         # Create the email

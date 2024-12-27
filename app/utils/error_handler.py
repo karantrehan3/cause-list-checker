@@ -1,6 +1,6 @@
-from app.emailer import Emailer
 import traceback
 from typing import Tuple
+from app.services.emailer import Emailer
 
 
 class ErrorHandler:
