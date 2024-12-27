@@ -28,17 +28,13 @@ class PDFSearcher:
         found_pages = []
         # Read the PDF from memory
         with BytesIO(response.content) as pdf_file:
-            document = fitz.open(stream=pdf_file.read(), filetype="pdf")
-
-            # Search for the term in each page
-            for page_num in range(len(document)):
-                page = document.load_page(page_num)
-                text = page.get_text()
-                if text and self.search_term.lower() in text.lower():
-                    found_pages.append(page_num + 1)  # Page numbers are 1-based
-
-            document.close()
-            del document
+            with fitz.open(stream=pdf_file.read(), filetype="pdf") as document:
+                # Search for the term in each page
+                for page_num in range(len(document)):
+                    page = document.load_page(page_num)
+                    text = page.get_text()
+                    if text and self.search_term.lower() in text.lower():
+                        found_pages.append(page_num + 1)  # Page numbers are 1-based
 
         response.close()
 
