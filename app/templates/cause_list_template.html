@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .container {
+            text-align: center;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        h3 {
+            color: #555;
+            font-weight: normal;
+        }
+
+        table {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        @media (max-width: 600px) {
+
+            table,
+            th,
+            td {
+                width: 100%;
+                display: block;
+            }
+
+            th,
+            td {
+                box-sizing: border-box;
+                width: 100%;
+                display: block;
+                text-align: left;
+            }
+
+            th {
+                background-color: #f2f2f2;
+                padding-top: 10px;
+                padding-bottom: 10px;
+            }
+
+            td {
+                padding-top: 10px;
+                padding-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Cause List Search Results for '<u>{{search_term}}</u>' on {{ date }}</h1>
+        {% if results %}
+        <h3>✅ Search results found.</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>List Type (and Link)</th>
+                    <th>Page Numbers</th>
+                    <th>Main/Sup</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr>
+                    {% set parts = result.pdf_name.split(' | ') %}
+                    <td><a href="{{ result.pdf_url }}">{{ parts[0] }}</a></td>
+                    <td>{{ result.page_nums | join(', ') }}</td>
+                    <td>{{ parts[1] if parts|length > 1 else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <h3>❌ No results found for the search term '<u>{{search_term}}</u>'.</h3>
+        {% endif %}
+        <br>
+        <br>
+        <h2>Cause Lists Searched</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>List Type</th>
+                    <th>Main/Sup</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pdf in pdfs %}
+                <tr>
+                    {% set parts = pdf.pdf_name.split(' | ') %}
+                    <td><a href="{{ pdf.pdf_url }}">{{ parts[0] }}</a></td>
+                    <td>{{ parts[1] if parts|length > 1 else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>

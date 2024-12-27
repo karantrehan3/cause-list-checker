@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .container {
+            text-align: center;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        pre {
+            text-align: left;
+            background-color: #f2f2f2;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>An error occurred during the cause list search</h1>
+        <p>Hello,</p>
+        <p>Unfortunately, an error occurred while processing your request. Please find the details below:</p>
+        <h2>Error Details</h2>
+        <pre>{{ error_message }}</pre>
+        <h2>Stack Trace</h2>
+        <pre>{{ stack_trace }}</pre>
+    </div>
+</body>
+
+</html>
