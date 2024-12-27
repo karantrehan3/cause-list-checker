@@ -1,5 +1,7 @@
-import pypdf
+import fitz
 import requests
+import time
+import random
 from io import BytesIO
 from typing import List, Dict, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -26,13 +28,16 @@ class PDFSearcher:
         found_pages = []
         # Read the PDF from memory
         with BytesIO(response.content) as pdf_file:
-            reader = pypdf.PdfReader(pdf_file)
+            document = fitz.open(stream=pdf_file.read(), filetype="pdf")
 
             # Search for the term in each page
-            for page_num, page in enumerate(reader.pages):
-                text = page.extract_text()
+            for page_num in range(len(document)):
+                page = document.load_page(page_num)
+                text = page.get_text()
                 if text and self.search_term.lower() in text.lower():
                     found_pages.append(page_num + 1)  # Page numbers are 1-based
+            
+            document.close()
 
         response.close()
 
@@ -42,7 +47,7 @@ class PDFSearcher:
 
     def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         results = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_pdf = {
                 executor.submit(self.fetch_and_search_pdf, pdf): pdf for pdf in pdfs
             }
