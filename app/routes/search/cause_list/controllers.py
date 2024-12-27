@@ -1,12 +1,15 @@
 from fastapi import HTTPException
 from datetime import datetime, timedelta
 import json
+import asyncio
 from typing import List, Dict, Any, Optional
 from app.managers.scraper import Scraper
 from app.managers.pdf_searcher import PDFSearcher
 from app.services.emailer import Emailer
 from app.utils.error_handler import ErrorHandler
 from app.config import settings
+
+search_lock = asyncio.Lock()
 
 
 async def scrape_search_and_notify(
@@ -25,28 +28,37 @@ async def scrape_search_and_notify(
     emailer = Emailer()
     error_handler = ErrorHandler(emailer, recipient_emails)
 
-    try:
-        # Step 1: Scrape the page and get PDF links
-        pdfs = scraper.parse_table_and_download_pdfs(date)
-        if not pdfs:
-            send_email(emailer, recipient_emails, search_term, date, pdfs, [])
-            return {"message": "No Cause Lists found"}
+    # Try to acquire the lock
+    if not search_lock.locked():
+        async with search_lock:
+            try:
+                # Step 1: Scrape the page and get PDF links
+                pdfs = scraper.parse_table_and_download_pdfs(date)
+                if not pdfs:
+                    send_email(emailer, recipient_emails, search_term, date, pdfs, [])
+                    return {"message": "No Cause Lists found"}
 
-        # Step 2: Search for the term in the PDFs
-        results = searcher.search_pdf(pdfs)
+                # Step 2: Search for the term in the PDFs (run in separate thread)
+                results = await asyncio.to_thread(searcher.search_pdf, pdfs)
 
-        print("Cause List Search Results: ", json.dumps(results, indent=4))
+                print("Cause List Search Results: ", json.dumps(results, indent=4))
 
-        # Step 3: If results found, send an email notification
-        send_email(emailer, recipient_emails, search_term, date, pdfs, results)
+                # Step 3: If results found, send an email notification
+                send_email(emailer, recipient_emails, search_term, date, pdfs, results)
 
-        return {"message": "Search completed and email sent!", "results": results}
+                return {
+                    "message": "Search completed and email sent!",
+                    "results": results,
+                }
 
-    except Exception as e:
-        error_message, stack_trace = error_handler.handle_exception(
-            e, {"search_term": search_term, "date": date}
-        )
-        raise HTTPException(status_code=500, detail=error_message)
+            except Exception as e:
+                error_message, stack_trace = error_handler.handle_exception(
+                    e, {"search_term": search_term, "date": date}
+                )
+                raise HTTPException(status_code=500, detail=error_message)
+    else:
+        # If lock is acquired, respond with 429
+        raise HTTPException(status_code=429, detail="Too Many Requests")
 
 
 def send_email(
