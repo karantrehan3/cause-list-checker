@@ -3,35 +3,38 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 
-class Scraper:
+class PDFScraper:
     def __init__(self, base_url: str):
         self.base_url = base_url
 
-    def get_pdf_links(self) -> list[dict]:
-        response = requests.get(self.base_url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, "html.parser")
+    def submit_view_cl_form(self, date: str):
+        # Simulate form submission to the actual endpoint
+        form_data = {
+            "t_f_date": date,  # The date of the cause list, e.g. "27/12/2024"
+            "urg_ord": "1",  # The list type, e.g. "1" for All Cause Lists
+            "action": "show_causeList",  # Action to show the cause list
+        }
 
-        table = soup.find("table", {"id": "tables11"})
-        links = []
-        if table:
-            rows = table.find_all("tr")[2:]  # Skip header rows
-            for row in rows:
-                date_cell = row.find("a")
-                type_cell = row.find_all("td")[1].get_text(strip=True)
-                main_sup_cell = row.find_all("td")[2].get_text(strip=True)
+        form_action_url = "https://highcourtchd.gov.in/view_causeList.php"
+        response = requests.post(form_action_url, data=form_data)
 
-                if date_cell and date_cell.get("onclick"):
-                    filename = date_cell["onclick"].split("filename=")[-1].strip("')\"")
-                    links.append(
-                        {
-                            "url": urljoin(
-                                self.base_url,
-                                f"./show_cause_list.php?filename={filename}",
-                            ),
-                            "date": date_cell.get_text(strip=True),
-                            "type": type_cell,
-                            "main_sup": main_sup_cell,
-                        }
-                    )
-        return links
+        return response.text  # Return the HTML page content
+
+    def parse_table_and_download_pdfs(self, date: str):
+        page_html = self.submit_view_cl_form(date)
+        soup = BeautifulSoup(page_html, "html.parser")
+
+        rows = soup.select("table#tables11 tr")
+        pdf_links = []
+
+        for row in rows:
+            link = row.find("a", href=True)
+            if link:
+                pdf_url = link["onclick"].split("'")[
+                    1
+                ]  # Extracting the URL from onclick
+                pdf_links.append(
+                    urljoin(self.base_url, pdf_url)
+                )  # Make it an absolute URL
+
+        return pdf_links
