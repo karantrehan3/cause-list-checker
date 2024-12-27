@@ -1,12 +1,12 @@
 version: "3.9"
 
 services:
-  pdf_scraper:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: pdf_scraper_app
+  app:
+    build: .
+    container_name: cause-list-checker
     ports:
       - "3080:3080"
     env_file:
       - .env
+    volumes:
+      - .:/app
