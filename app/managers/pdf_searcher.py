@@ -25,16 +25,18 @@ class PDFSearcher:
         if response.status_code != 200:
             return None
 
-        # Read the PDF from memory
-        pdf_file = BytesIO(response.content)
-        reader = PyPDF2.PdfReader(pdf_file)
-
-        # Search for the term in each page
         found_pages = []
-        for page_num, page in enumerate(reader.pages):
-            text = page.extract_text()
-            if text and self.search_term.lower() in text.lower():
-                found_pages.append(page_num + 1)  # Page numbers are 1-based
+        # Read the PDF from memory
+        with BytesIO(response.content) as pdf_file:
+            reader = PyPDF2.PdfReader(pdf_file)
+
+            # Search for the term in each page
+            for page_num, page in enumerate(reader.pages):
+                text = page.extract_text()
+                if text and self.search_term.lower() in text.lower():
+                    found_pages.append(page_num + 1)  # Page numbers are 1-based
+
+        response.close()
 
         if found_pages:
             return {"pdf_name": pdf_name, "pdf_url": pdf_url, "page_nums": found_pages}
@@ -42,7 +44,7 @@ class PDFSearcher:
 
     def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         results = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             future_to_pdf = {
                 executor.submit(self.fetch_and_search_pdf, pdf): pdf for pdf in pdfs
             }
@@ -50,4 +52,5 @@ class PDFSearcher:
                 result = future.result()
                 if result:
                     results.append(result)
+                del future_to_pdf[future]
         return results

@@ -19,6 +19,7 @@ class Scraper:
         }
 
         response = requests.post(self.form_action_url, data=form_data)
+        response.raise_for_status()
         return response.text
 
     def parse_table_and_download_pdfs(self, date: str) -> List[Dict[str, str]]:
