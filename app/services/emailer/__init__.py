@@ -1,17 +1,17 @@
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import os
 from jinja2 import Environment, FileSystemLoader
+from app.config import settings
 
 
 class Emailer:
     def __init__(self) -> None:
-        self.sender_email = os.getenv("SENDER_EMAIL")
-        self.sender_password = os.getenv("SENDER_PASSWORD")
-        self.sender_name = os.getenv("SENDER_NAME")
-        self.smtp_server = os.getenv("SMTP_SERVER")
-        self.smtp_port = int(os.getenv("SMTP_PORT"))
+        self.sender_email = settings.SENDER_EMAIL
+        self.sender_password = settings.SENDER_PASSWORD
+        self.sender_name = settings.SENDER_NAME
+        self.smtp_server = settings.SMTP_SERVER
+        self.smtp_port = settings.SMTP_PORT
         self.env = Environment(
             loader=FileSystemLoader("app/services/emailer/templates")
         )
