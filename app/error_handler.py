@@ -1,13 +1,14 @@
 from app.emailer import Emailer
 import traceback
+from typing import Tuple
 
 
 class ErrorHandler:
-    def __init__(self, emailer: Emailer, recipients: list):
+    def __init__(self, emailer: Emailer, recipients: list) -> None:
         self.emailer = emailer
         self.recipients = recipients
 
-    def handle_exception(self, exception: Exception, context: dict):
+    def handle_exception(self, exception: Exception, context: dict) -> Tuple[str, str]:
         error_message = str(exception)
         stack_trace = traceback.format_exc()
         context.update({"error_message": error_message, "stack_trace": stack_trace})

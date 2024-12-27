@@ -9,7 +9,9 @@ import json
 from typing import List, Dict, Any, Optional
 
 
-async def scrape_search_and_notify(search_term: str, date: Optional[str] = None):
+async def scrape_search_and_notify(
+    search_term: str, date: Optional[str] = None
+) -> Dict[str, Any]:
     # Initialize the components
     scraper = Scraper()
     searcher = PDFSearcher(search_term=search_term)
@@ -54,7 +56,7 @@ def send_email(
     date: str,
     pdfs: List[Dict[str, str]],
     results: List[Dict[str, Any]],
-):
+) -> None:
     context = {
         "search_term": search_term,
         "date": date,

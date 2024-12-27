@@ -3,15 +3,15 @@ import requests
 from io import BytesIO
 import time
 import random
-from typing import List, Dict
+from typing import List, Dict, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class PDFSearcher:
-    def __init__(self, search_term: str):
+    def __init__(self, search_term: str) -> None:
         self.search_term = search_term
 
-    def fetch_and_search_pdf(self, pdf: Dict[str, str]) -> Dict[str, any]:
+    def fetch_and_search_pdf(self, pdf: Dict[str, str]) -> Optional[Dict[str, Any]]:
         # Add a random delay between 0.5 and 1 seconds
         time.sleep(random.uniform(0.5, 1))
 
@@ -40,7 +40,7 @@ class PDFSearcher:
             return {"pdf_name": pdf_name, "pdf_url": pdf_url, "page_nums": found_pages}
         return None
 
-    def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, any]]:
+    def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         results = []
         with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_pdf = {
