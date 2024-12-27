@@ -1,11 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import os
 
 
-class PDFScraper:
-    def __init__(self, base_url: str):
-        self.base_url = base_url
+class Scraper:
+    def __init__(self):
+        self.base_url = os.getenv("BASE_URL")
+        self.form_action_url = os.getenv("FORM_ACTION_URL")
 
     def submit_view_cl_form(self, date: str):
         # Simulate form submission to the actual endpoint
@@ -15,10 +17,8 @@ class PDFScraper:
             "action": "show_causeList",  # Action to show the cause list
         }
 
-        form_action_url = "https://highcourtchd.gov.in/view_causeList.php"
-        response = requests.post(form_action_url, data=form_data)
-
-        return response.text  # Return the HTML page content
+        response = requests.post(self.form_action_url, data=form_data)
+        return response.text
 
     def parse_table_and_download_pdfs(self, date: str):
         page_html = self.submit_view_cl_form(date)
