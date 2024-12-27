@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from app.scraper import PDFScraper
+from app.scraper import Scraper
 from app.pdf_searcher import PDFSearcher
 from app.emailer import Emailer
 from typing import List
@@ -12,7 +12,7 @@ app = FastAPI()
 @app.post("/init")
 async def init_scraping_and_notification(search_term: str):
     # Initialize the components
-    scraper = PDFScraper(base_url="https://highcourtchd.gov.in/clc.php")
+    scraper = Scraper()
     searcher = PDFSearcher(search_term=search_term)
     emailer = Emailer()
 
