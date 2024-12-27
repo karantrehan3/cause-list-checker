@@ -1,14 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-import os
 from typing import List, Dict
+from app.config import settings
 
 
 class Scraper:
     def __init__(self):
-        self.base_url = os.getenv("BASE_URL")
-        self.form_action_url = os.getenv("FORM_ACTION_URL")
+        self.base_url = settings.BASE_URL
+        self.form_action_url = settings.FORM_ACTION_URL
 
     def submit_view_cl_form(self, date: str) -> str:
         # Simulate form submission to the actual endpoint
