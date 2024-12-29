@@ -4,16 +4,15 @@ from datetime import datetime
 
 
 class SearchRequest(BaseModel):
-    search_term: str
+    search_terms: List[str]
     date: Optional[str]
     recipient_emails: Optional[List[EmailStr]]
 
-    @validator("search_term")
-    def validate_search_term(cls, value):
-        value = value.strip()
-        if not value:
-            raise ValueError("Search term is required.")
-        return value
+    @validator("search_terms")
+    def validate_search_terms(cls, values):
+        if not values:
+            raise ValueError("At least one search term is required.")
+        return [value.strip() for value in values if value.strip()]
 
     @validator("date")
     def validate_date(cls, value):

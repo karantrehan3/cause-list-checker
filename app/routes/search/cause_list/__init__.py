@@ -8,5 +8,5 @@ router = APIRouter()
 @router.post("/")
 async def search_cause_list(body: SearchRequest):
     return await scrape_search_and_notify(
-        body.search_term, body.date, body.recipient_emails
+        body.search_terms, body.date, body.recipient_emails
     )
