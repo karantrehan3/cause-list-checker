@@ -66,8 +66,9 @@
         <table>
             <thead>
                 <tr>
-                    <th>List Type (and Link)</th>
-                    <th>Page Numbers</th>
+                    <th>List Type</th>
+                    <th>Total Pages</th>
+                    <th>Pages Found</th>
                     <th>Main/Sup</th>
                 </tr>
             </thead>
@@ -76,7 +77,8 @@
                 <tr>
                     {% set parts = result.pdf_name.split(' | ') %}
                     <td><a href="{{ result.pdf_url }}">{{ parts[0] }}</a></td>
-                    <td>{{ result.page_nums | join(', ') }}</td>
+                    <td>{{ result.num_pages }} pages</td>
+                    <td>{{ result.page_nums_found | join(', ') }}</td>
                     <td>{{ parts[1] if parts|length > 1 else '' }}</td>
                 </tr>
                 {% endfor %}
@@ -92,6 +94,7 @@
             <thead>
                 <tr>
                     <th>List Type</th>
+                    <th>Total Pages</th>
                     <th>Main/Sup</th>
                 </tr>
             </thead>
@@ -100,6 +103,7 @@
                 <tr>
                     {% set parts = pdf.pdf_name.split(' | ') %}
                     <td><a href="{{ pdf.pdf_url }}">{{ parts[0] }}</a></td>
+                    <td>{{ pdf.num_pages }} pages</td>
                     <td>{{ parts[1] if parts|length > 1 else '' }}</td>
                 </tr>
                 {% endfor %}
