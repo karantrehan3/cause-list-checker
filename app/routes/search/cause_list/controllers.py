@@ -13,7 +13,7 @@ search_lock = asyncio.Lock()
 
 
 async def scrape_search_and_notify(
-    search_term: str,
+    search_terms: List[str],
     date: Optional[str] = None,
     recipient_emails: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
@@ -28,7 +28,7 @@ async def scrape_search_and_notify(
 
     async def process_search_and_notify():
         scraper = Scraper()
-        searcher = PDFSearcher(search_term=search_term)
+        searcher = PDFSearcher(search_terms=search_terms)
         emailer = Emailer()
         error_handler = ErrorHandler(emailer, recipient_emails)
 
@@ -37,7 +37,7 @@ async def scrape_search_and_notify(
                 # Step 1: Scrape the page and get PDF links
                 pdfs = scraper.parse_table_and_download_pdfs(date)
                 if not pdfs:
-                    send_email(emailer, recipient_emails, search_term, date, pdfs, [])
+                    send_email(emailer, recipient_emails, search_terms, date, pdfs, [])
                     print("ALERT! No Cause Lists found", flush=True)
                     return
 
@@ -47,7 +47,7 @@ async def scrape_search_and_notify(
                     flush=True,
                 )
 
-                # Step 2: Search for the term in the PDFs (run in separate thread)
+                # Step 2: Search for the terms in the PDFs (run in separate thread)
                 results = await asyncio.to_thread(searcher.search_pdf, pdfs)
 
                 print(
@@ -57,7 +57,7 @@ async def scrape_search_and_notify(
                 )
 
                 # Step 3: If results found, send an email notification
-                send_email(emailer, recipient_emails, search_term, date, pdfs, results)
+                send_email(emailer, recipient_emails, search_terms, date, pdfs, results)
 
                 print(
                     "SUCCESS! Search completed and email sent! ",
@@ -68,7 +68,7 @@ async def scrape_search_and_notify(
 
             except Exception as e:
                 error_message, stack_trace = error_handler.handle_exception(
-                    e, {"search_term": search_term, "date": date}
+                    e, {"search_terms": search_terms, "date": date}
                 )
                 raise HTTPException(status_code=500, detail=error_message)
 
@@ -79,13 +79,13 @@ async def scrape_search_and_notify(
 def send_email(
     emailer: Emailer,
     email_list: List[str],
-    search_term: str,
+    search_terms: str,
     date: str,
     pdfs: List[Dict[str, str]],
     results: List[Dict[str, Any]],
 ) -> None:
     context = {
-        "search_term": search_term,
+        "search_terms": search_terms,
         "date": date,
         "results": results,
         "pdfs": pdfs,
@@ -93,7 +93,7 @@ def send_email(
     try:
         emailer.send_email(
             recipients=email_list,
-            subject=f"Cause List Search Results for '{search_term}' on {date}",
+            subject=f"Cause List Search Results for {search_terms} on {date}",
             template_name="cause_list_template.html",
             context=context,
         )

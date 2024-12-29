@@ -8,8 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class PDFSearcher:
-    def __init__(self, search_term: str) -> None:
-        self.search_term = search_term
+    def __init__(self, search_terms: List[str]) -> None:
+        self.search_terms = search_terms
 
     def fetch_and_search_pdf(self, pdf: Dict[str, str]) -> Optional[Dict[str, Any]]:
         # Add a random delay between 0.5 and 1 seconds
@@ -25,28 +25,32 @@ class PDFSearcher:
         if response.status_code != 200:
             return None
 
-        found_pages = []
+        found_pages = {term: [] for term in self.search_terms}
         num_pages = 0
         # Read the PDF from memory
         with BytesIO(response.content) as pdf_file:
             with fitz.open(stream=pdf_file.read(), filetype="pdf") as document:
                 num_pages = len(document)
-                # Search for the term in each page
+                # Search for the terms in each page
                 for page_num in range(num_pages):
                     page = document.load_page(page_num)
                     text = page.get_text()
-                    if text and self.search_term.lower() in text.lower():
-                        found_pages.append(page_num + 1)  # Page numbers are 1-based
+                    if text:
+                        for term in self.search_terms:
+                            if term.lower() in text.lower():
+                                found_pages[term].append(
+                                    page_num + 1
+                                )  # Page numbers are 1-based
 
         response.close()
 
         pdf["num_pages"] = num_pages
 
-        if found_pages:
+        if any(found_pages.values()):
             return {
                 "pdf_name": pdf_name,
                 "pdf_url": pdf_url,
-                "page_nums_found": found_pages,
+                "found_pages": found_pages,
                 "num_pages": num_pages,
             }
         return None

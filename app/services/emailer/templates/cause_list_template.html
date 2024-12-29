@@ -57,10 +57,10 @@
 <body>
     <div class="container">
         {% if not pdfs %}
-        <h1>Cause List Search Results for '<u>{{search_term}}</u>' on {{ date }}</h1>
+        <h1>Cause List Search Results for '{{ search_terms | join(', ') }}' on {{ date }}</h1>
         <h3>⚠️ No Cause Lists found on {{ date }}</h3>
         {% else %}
-        <h1>Cause List Search Results for '<u>{{search_term}}</u>' on {{ date }}</h1>
+        <h1>Cause List Search Results for '{{ search_terms | join(', ') }}' on {{ date }}</h1>
         {% if results %}
         <h3>✅ Search results found.</h3>
         <table>
@@ -76,10 +76,25 @@
                 {% for result in results %}
                 <tr>
                     {% set parts = result.pdf_name.split(' | ') %}
-                    <td><a href="{{ result.pdf_url }}">{{ parts[0] }}</a></td>
-                    <td>{{ result.num_pages }} pages</td>
-                    <td>{{ result.page_nums_found | join(', ') }}</td>
-                    <td>{{ parts[1] if parts|length > 1 else '' }}</td>
+                    <td rowspan="{{ result.found_pages | length }}"><a href="{{ result.pdf_url }}">{{ parts[0] }}</a>
+                    </td>
+                    <td rowspan="{{ result.found_pages | length }}">{{ result.num_pages }} pages</td>
+                    {% for term, pages in result.found_pages.items() %}
+                    {% if loop.index > 1 %}
+                </tr>
+                <tr>
+                    {% endif %}
+                    <td><strong>{{ term }}:</strong>
+                        {% if pages %}
+                        {{ pages | join(', ') }}
+                        {% else %}
+                        Not found
+                        {% endif %}
+                    </td>
+                    {% if loop.index == 1 %}
+                    <td rowspan="{{ result.found_pages | length }}">{{ parts[1] if parts|length > 1 else '' }}</td>
+                    {% endif %}
+                    {% endfor %}
                 </tr>
                 {% endfor %}
             </tbody>
