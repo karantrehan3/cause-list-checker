@@ -26,11 +26,13 @@ class PDFSearcher:
             return None
 
         found_pages = []
+        num_pages = 0
         # Read the PDF from memory
         with BytesIO(response.content) as pdf_file:
             with fitz.open(stream=pdf_file.read(), filetype="pdf") as document:
+                num_pages = len(document)
                 # Search for the term in each page
-                for page_num in range(len(document)):
+                for page_num in range(num_pages):
                     page = document.load_page(page_num)
                     text = page.get_text()
                     if text and self.search_term.lower() in text.lower():
@@ -38,8 +40,15 @@ class PDFSearcher:
 
         response.close()
 
+        pdf["num_pages"] = num_pages
+
         if found_pages:
-            return {"pdf_name": pdf_name, "pdf_url": pdf_url, "page_nums": found_pages}
+            return {
+                "pdf_name": pdf_name,
+                "pdf_url": pdf_url,
+                "page_nums_found": found_pages,
+                "num_pages": num_pages,
+            }
         return None
 
     def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, Any]]:
