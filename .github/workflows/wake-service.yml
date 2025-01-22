@@ -11,14 +11,11 @@ jobs:
 
     steps:
       - name: Send health check request to wake the server
-        run: curl -X GET ${{ secrets.BASE_URL }}/health
-
-      - name: Wait for 1.5 minutes
-        run: sleep 120
+        run: curl --location "${{ secrets.BASE_URL }}/health"
 
       - name: Send the main request with Authorization and JSON body
         run: |
-          curl -X POST ${{ secrets.BASE_URL }}/search/cause-list \
-          -H "Authorization: ${{ secrets.AUTH_HEADER }}" \
-          -H "Content-Type: application/json" \
-          -d "${{ secrets.REQUEST_BODY }}"
+          curl --location "${{ secrets.BASE_URL }}/search/cause-list" \
+          --header "Authorization: ${{ secrets.AUTH_HEADER }}" \
+          --header "Content-Type: application/json" \
+          --data-raw '${{ secrets.REQUEST_BODY }}'
