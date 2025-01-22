@@ -1,6 +1,7 @@
 name: Cause List Checker - Wake and Trigger Service
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '30 4,7,10,13,16 * * *'  # Runs at 10 AM, 1 PM, 4 PM, 7 PM, and 10 PM IST (converted to UTC)
 
