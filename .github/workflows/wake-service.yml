@@ -1,0 +1,23 @@
+name: Cause List Checker - Wake and Trigger Service
+
+on:
+  schedule:
+    - cron: '30 4,7,10,13,16 * * *'  # Runs at 10 AM, 1 PM, 4 PM, 7 PM, and 10 PM IST (converted to UTC)
+
+jobs:
+  wake_and_trigger_service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send health check request to wake the server
+        run: curl -X GET ${{ secrets.BASE_URL }}/health
+
+      - name: Wait for 1.5 minutes
+        run: sleep 120
+
+      - name: Send the main request with Authorization and JSON body
+        run: |
+          curl -X POST ${{ secrets.BASE_URL }}/trigger \
+          -H "Authorization: ${{ secrets.AUTH_HEADER }}" \
+          -H "Content-Type: application/json" \
+          -d "${{ secrets.REQUEST_BODY }}"
