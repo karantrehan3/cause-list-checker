@@ -17,7 +17,7 @@ jobs:
 
       - name: Send the main request with Authorization and JSON body
         run: |
-          curl -X POST ${{ secrets.BASE_URL }}/trigger \
+          curl -X POST ${{ secrets.BASE_URL }}/search/cause-list \
           -H "Authorization: ${{ secrets.AUTH_HEADER }}" \
           -H "Content-Type: application/json" \
           -d "${{ secrets.REQUEST_BODY }}"
