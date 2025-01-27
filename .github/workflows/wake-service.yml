@@ -4,11 +4,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '30 4,7,10,13,16 * * *'  # Runs at 10 AM, 1 PM, 4 PM, 7 PM, and 10 PM IST (converted to UTC)
-    - cron: '45 7,16 * * *'  # Runs at 01:15 PM, and 10:15 PM IST (converted to UTC)
 
 jobs:
   wake_and_trigger_service:
-    if: github.event.schedule == '30 4,7,10,13,16 * * *'
     runs-on: ubuntu-latest
 
     steps:
@@ -21,18 +19,3 @@ jobs:
           --header "Authorization: ${{ secrets.AUTH_HEADER }}" \
           --header "Content-Type: application/json" \
           --data-raw '${{ secrets.REQUEST_BODY }}'
-
-  wake_and_trigger_service_2:
-    if: github.event.schedule == '45 7,16 * * *'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Send health check request to wake the server
-        run: curl --location "${{ secrets.BASE_URL }}/health"
-
-      - name: Send the main request with Authorization and JSON body
-        run: |
-          curl --location "${{ secrets.BASE_URL }}/search/cause-list" \
-          --header "Authorization: ${{ secrets.AUTH_HEADER }}" \
-          --header "Content-Type: application/json" \
-          --data-raw '${{ secrets.REQUEST_BODY_2 }}'
