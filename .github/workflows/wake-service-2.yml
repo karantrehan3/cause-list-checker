@@ -1,0 +1,21 @@
+name: Cause List Checker - Wake and Trigger Service 2
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 4,10,16 * * *'  # Runs at 10:15 AM, 4:15 PM, and 10:15 PM IST (converted to UTC)
+
+jobs:
+  wake_and_trigger_service_2:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send health check request to wake the server
+        run: curl --location "${{ secrets.BASE_URL }}/health"
+
+      - name: Send the main request with Authorization and JSON body
+        run: |
+          curl --location "${{ secrets.BASE_URL }}/search/cause-list" \
+          --header "Authorization: ${{ secrets.AUTH_HEADER }}" \
+          --header "Content-Type: application/json" \
+          --data-raw '${{ secrets.REQUEST_BODY_2 }}'
