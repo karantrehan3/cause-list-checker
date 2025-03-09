@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, validator
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 
 
@@ -7,6 +7,7 @@ class SearchRequest(BaseModel):
     search_terms: List[str]
     date: Optional[str]
     recipient_emails: Optional[List[EmailStr]]
+    case_details: Optional[Dict[str, str]]
 
     @validator("search_terms")
     def validate_search_terms(cls, values):
@@ -22,4 +23,16 @@ class SearchRequest(BaseModel):
                 datetime.strptime(value, "%d/%m/%Y")
             except ValueError:
                 raise ValueError("Invalid date format. Use DD/MM/YYYY.")
+        return value
+
+    @validator("case_details")
+    def validate_case_details(cls, value):
+        if value:
+            required_keys = {"no", "type", "year"}
+            if not isinstance(value, dict) or not required_keys.issubset(value.keys()):
+                raise ValueError(
+                    "case_details must be a dictionary containing 'no', 'type', and 'year' as strings."
+                )
+            if not all(isinstance(v, str) for v in value.values()):
+                raise ValueError("All values in case_details must be strings.")
         return value

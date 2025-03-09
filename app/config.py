@@ -8,8 +8,11 @@ class Settings(BaseSettings):
     SENDER_NAME: str
     SMTP_SERVER: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    BASE_URL: str
+    CL_BASE_URL: str
+    MAIN_BASE_URL: str
     FORM_ACTION_URL: str
+    CASE_SEARCH_URL: str
+    CASE_DETAILS_URL: str
     EMAIL_RECIPIENTS: str
 
     class Config:

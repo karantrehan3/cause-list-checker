@@ -16,6 +16,7 @@ async def scrape_search_and_notify(
     search_terms: List[str],
     date: Optional[str] = None,
     recipient_emails: Optional[List[str]] = None,
+    case_details: Dict[str, str] = None,
 ) -> Dict[str, Any]:
     if search_lock.locked():
         raise HTTPException(status_code=429, detail="Too Many Requests")
@@ -34,10 +35,22 @@ async def scrape_search_and_notify(
 
         async with search_lock:
             try:
-                # Step 1: Scrape the page and get PDF links
-                pdfs = scraper.parse_table_and_download_pdfs(date)
+                # Step 1 & 2: Scrape the page and get PDF links & Case details in parallel
+                pdfs, case_details_html = await asyncio.gather(
+                    asyncio.to_thread(scraper.parse_table_and_download_pdfs, date),
+                    asyncio.to_thread(scraper.get_case_details, case_details),
+                )
+
                 if not pdfs:
-                    send_email(emailer, recipient_emails, search_terms, date, pdfs, [])
+                    send_email(
+                        emailer,
+                        recipient_emails,
+                        search_terms,
+                        date,
+                        pdfs,
+                        [],
+                        case_details_html,
+                    )
                     print("ALERT! No Cause Lists found", flush=True)
                     return
 
@@ -47,7 +60,7 @@ async def scrape_search_and_notify(
                     flush=True,
                 )
 
-                # Step 2: Search for the terms in the PDFs (run in separate thread)
+                # Step 3: Search for the terms in the PDFs (run in separate thread)
                 results = await asyncio.to_thread(searcher.search_pdf, pdfs)
 
                 print(
@@ -56,8 +69,16 @@ async def scrape_search_and_notify(
                     flush=True,
                 )
 
-                # Step 3: If results found, send an email notification
-                send_email(emailer, recipient_emails, search_terms, date, pdfs, results)
+                # Step 4: If results found, send an email notification
+                send_email(
+                    emailer,
+                    recipient_emails,
+                    search_terms,
+                    date,
+                    pdfs,
+                    results,
+                    case_details_html,
+                )
 
                 print(
                     "SUCCESS! Search completed and email sent! ",
@@ -83,12 +104,14 @@ def send_email(
     date: str,
     pdfs: List[Dict[str, str]],
     results: List[Dict[str, Any]],
+    case_details_html: Optional[str] = None,
 ) -> None:
     context = {
         "search_terms": search_terms,
         "date": date,
         "results": results,
         "pdfs": pdfs,
+        "case_details_html": case_details_html,
     }
     try:
         emailer.send_email(
