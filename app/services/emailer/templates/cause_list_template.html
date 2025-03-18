@@ -45,6 +45,13 @@
             background-color: #f2f2f2;
         }
 
+        .timestamp {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
         @media (max-width: 600px) {
             h1 {
                 font-size: 1.5em;
@@ -56,6 +63,7 @@
 
 <body>
     <div class="container">
+        <p class="timestamp">Email generated at {{ generated_timestamp }}</p>
         {% if not pdfs %}
         <h1>Cause List Search Results for '{{ search_terms | join(', ') }}' on {{ date }}</h1>
         <h3>⚠️ No Cause Lists found on {{ date }}</h3>
@@ -76,25 +84,21 @@
                 {% for result in results %}
                 <tr>
                     {% set parts = result.pdf_name.split(' | ') %}
-                    <td rowspan="{{ result.found_pages | length }}"><a href="{{ result.pdf_url }}">{{ parts[0] }}</a>
+                    <td><a href="{{ result.pdf_url }}">{{ parts[0] }}</a></td>
+                    <td>{{ result.num_pages }} pages</td>
+                    <td>
+                        {% for term, pages in result.found_pages.items() %}
+                        <div>
+                            <strong>{{ term }}:</strong>
+                            {% if pages %}
+                            {{ pages | join(', ') }}
+                            {% else %}
+                            Not found
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                     </td>
-                    <td rowspan="{{ result.found_pages | length }}">{{ result.num_pages }} pages</td>
-                    {% for term, pages in result.found_pages.items() %}
-                    {% if loop.index > 1 %}
-                </tr>
-                <tr>
-                    {% endif %}
-                    <td><strong>{{ term }}:</strong>
-                        {% if pages %}
-                        {{ pages | join(', ') }}
-                        {% else %}
-                        Not found
-                        {% endif %}
-                    </td>
-                    {% if loop.index == 1 %}
-                    <td rowspan="{{ result.found_pages | length }}">{{ parts[1] if parts|length > 1 else '' }}</td>
-                    {% endif %}
-                    {% endfor %}
+                    <td>{{ parts[1] if parts|length > 1 else '' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

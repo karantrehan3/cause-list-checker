@@ -3,6 +3,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from jinja2 import Environment, FileSystemLoader
 from app.config import settings
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 
 
@@ -43,7 +44,14 @@ class Emailer:
 
             # Render the HTML template
             template = self.env.get_template(template_name)
-            html_content = template.render(context)
+            html_content = template.render(
+                {
+                    **context,
+                    "generated_timestamp": datetime.now(
+                        timezone(timedelta(hours=5, minutes=30))
+                    ).strftime("%Y-%m-%d %H:%M:%S IST"),
+                }
+            )
             msg.attach(MIMEText(html_content, "html"))
 
             # Connect to the SMTP server
