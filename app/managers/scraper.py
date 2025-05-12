@@ -3,6 +3,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from typing import List, Dict, Optional
 from app.config import settings
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import certifi
 
 
 class Scraper:
@@ -12,6 +15,24 @@ class Scraper:
         self.form_action_url = settings.FORM_ACTION_URL
         self.case_search_url = settings.CASE_SEARCH_URL
         self.case_details_url = settings.CASE_DETAILS_URL
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
+    def _create_session(self) -> requests.Session:
+        """Create a new session with retry logic and SSL verification"""
+        session = requests.Session()
+        retry = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503, 504]
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('https://', adapter)
+        
+        # Configure SSL verification
+        session.verify = certifi.where()  # Use certifi's certificate bundle
+        return session
 
     def submit_view_cl_form(self, date: str) -> str:
         # Simulate form submission to the actual endpoint
@@ -21,9 +42,18 @@ class Scraper:
             "action": "show_causeList",  # Action to show the cause list
         }
 
-        response = requests.post(self.form_action_url, data=form_data)
-        response.raise_for_status()
-        return response.text
+        try:
+            with self._create_session() as session:
+                response = session.post(
+                    self.form_action_url,
+                    data=form_data,
+                    headers=self.headers
+                )
+                response.raise_for_status()
+                return response.text
+        except requests.exceptions.RequestException as e:
+            print(f"Error making request: {e}", flush=True)
+            raise
 
     def parse_table_and_download_pdfs(self, date: str) -> List[Dict[str, str]]:
         page_html = self.submit_view_cl_form(date)
@@ -40,12 +70,8 @@ class Scraper:
                 main_sup = cells[2].text.strip()
 
                 if link:
-                    pdf_url = link["onclick"].split("'")[
-                        1
-                    ]  # Extracting the URL from onclick
-                    pdf_url = urljoin(
-                        self.cl_base_url, pdf_url
-                    )  # Make it an absolute URL
+                    pdf_url = link["onclick"].split("'")[1]  # Extracting the URL from onclick
+                    pdf_url = urljoin(self.cl_base_url, pdf_url)  # Make it an absolute URL
                     pdf_name = f"{list_type} | {main_sup}"
                     pdfs.append({"pdf_name": pdf_name, "pdf_url": pdf_url})
 
@@ -72,31 +98,34 @@ class Scraper:
             "submit": "Search Case",
         }
 
-        # Make initial request with minimal headers
-        session = requests.Session()
-        response = session.post(self.case_search_url, data=form_data)
-        response.raise_for_status()
+        try:
+            with self._create_session() as session:
+                response = session.post(self.case_search_url, data=form_data, headers=self.headers)
+                response.raise_for_status()
 
-        # Get the PHPSESSID cookie
-        session_cookie = session.cookies.get("PHPSESSID")
-        if not session_cookie:
+                # Get the PHPSESSID cookie
+                session_cookie = session.cookies.get("PHPSESSID")
+                if not session_cookie:
+                    return None
+
+                # Parse response to get case_id
+                soup = BeautifulSoup(response.text, "html.parser")
+                case_link = soup.find("a", href=lambda x: x and "enq_caseno.php?case_id=" in x)
+
+                if not case_link:
+                    return None
+
+                # Extract case_id from the link
+                case_id = case_link["href"].split("case_id=")[1]
+
+                return case_id, session_cookie
+        except requests.exceptions.RequestException as e:
+            print(f"Error making request: {e}", flush=True)
             return None
-
-        # Parse response to get case_id
-        soup = BeautifulSoup(response.text, "html.parser")
-        case_link = soup.find("a", href=lambda x: x and "enq_caseno.php?case_id=" in x)
-
-        if not case_link:
-            return None
-
-        # Extract case_id from the link
-        case_id = case_link["href"].split("case_id=")[1]
-
-        return case_id, session_cookie
 
     def get_case_details(
         self, case_details: Optional[Dict[str, str]] = None
-    ) -> Optional[Dict[str, str]]:
+    ) -> Optional[str]:
         """
         Get case details by first obtaining the case ID and session cookie, then fetching details.
 
@@ -108,7 +137,7 @@ class Scraper:
                 - "year" (str): Year of the case (e.g., '2015').
 
         Returns:
-            Optional[Dict[str, str]]: Dictionary containing case details if successful, otherwise None.
+            Optional[str]: HTML content containing case details if successful, otherwise None.
         """
         if not case_details:
             return None
@@ -121,27 +150,35 @@ class Scraper:
 
         case_id, session_cookie = result
         case_details_url = f"{self.case_details_url}?case_id={case_id}"
-        headers = {"Cookie": f"PHPSESSID={session_cookie}"}
-
-        details_response = requests.get(case_details_url, headers=headers)
-        details_response.raise_for_status()
-
-        html_content = details_response.text if details_response.text else None
-
-        if html_content is None:
-            return None
-
-        # Replace relative paths with absolute URLs
-        replacements = {
-            "../data/": f"{self.main_base_url}/data/",
-            "../images/": f"{self.main_base_url}/images/",
-            "../css/": f"{self.main_base_url}/css/",
-            "../js/": f"{self.main_base_url}/js/",
-            "href='./": f"href='{self.main_base_url}/",
-            "href='../": f"href='{self.main_base_url}/",
+        headers = {
+            **self.headers,
+            "Cookie": f"PHPSESSID={session_cookie}"
         }
 
-        for old, new in replacements.items():
-            html_content = html_content.replace(old, new)
+        try:
+            with self._create_session() as session:
+                details_response = session.get(case_details_url, headers=headers)
+                details_response.raise_for_status()
 
-        return html_content
+                html_content = details_response.text if details_response.text else None
+
+                if html_content is None:
+                    return None
+
+                # Replace relative paths with absolute URLs
+                replacements = {
+                    "../data/": f"{self.main_base_url}/data/",
+                    "../images/": f"{self.main_base_url}/images/",
+                    "../css/": f"{self.main_base_url}/css/",
+                    "../js/": f"{self.main_base_url}/js/",
+                    "href='./": f"href='{self.main_base_url}/",
+                    "href='../": f"href='{self.main_base_url}/",
+                }
+
+                for old, new in replacements.items():
+                    html_content = html_content.replace(old, new)
+
+                return html_content
+        except requests.exceptions.RequestException as e:
+            print(f"Error making request: {e}", flush=True)
+            return None
