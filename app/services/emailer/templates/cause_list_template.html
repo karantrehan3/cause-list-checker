@@ -112,6 +112,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S No.</th>
                     <th>List Type</th>
                     <th>Total Pages</th>
                     <th>Main/Sup</th>
@@ -120,6 +121,7 @@
             <tbody>
                 {% for pdf in pdfs %}
                 <tr>
+                    <td>{{ loop.index }}.</td>
                     {% set parts = pdf.pdf_name.split(' | ') %}
                     <td><a href="{{ pdf.pdf_url }}">{{ parts[0] }}</a></td>
                     <td>{{ pdf.num_pages }} pages</td>
