@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+
 from app.routes.search.cause_list.controllers import scrape_search_and_notify
 from app.routes.search.cause_list.validators import SearchRequest
 

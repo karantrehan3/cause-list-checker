@@ -1,10 +1,12 @@
 import smtplib
+from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any, Dict, List
+
 from jinja2 import Environment, FileSystemLoader
+
 from app.config import settings
-from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any
 
 
 class Emailer:
