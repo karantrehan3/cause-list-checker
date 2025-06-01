@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, validator
-from typing import List, Optional, Dict
 from datetime import datetime
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, EmailStr, validator
 
 
 class SearchRequest(BaseModel):

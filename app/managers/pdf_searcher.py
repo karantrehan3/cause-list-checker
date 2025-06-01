@@ -1,10 +1,11 @@
+import random
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import BytesIO
+from typing import Any, Dict, List, Optional
+
 import fitz
 import requests
-import time
-import random
-from io import BytesIO
-from typing import List, Dict, Optional, Any
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class PDFSearcher:
