@@ -1,11 +1,13 @@
+from typing import Dict, List, Optional
+from urllib.parse import urljoin
+
+import certifi
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-from typing import List, Dict, Optional
-from app.config import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import certifi
+
+from app.config import settings
 
 
 class Scraper:
@@ -16,20 +18,18 @@ class Scraper:
         self.case_search_url = settings.CASE_SEARCH_URL
         self.case_details_url = settings.CASE_DETAILS_URL
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
 
     def _create_session(self) -> requests.Session:
         """Create a new session with retry logic and SSL verification"""
         session = requests.Session()
         retry = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[500, 502, 503, 504]
+            total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]
         )
         adapter = HTTPAdapter(max_retries=retry)
-        session.mount('https://', adapter)
-        
+        session.mount("https://", adapter)
+
         # Configure SSL verification
         session.verify = certifi.where()  # Use certifi's certificate bundle
         return session
@@ -45,9 +45,7 @@ class Scraper:
         try:
             with self._create_session() as session:
                 response = session.post(
-                    self.form_action_url,
-                    data=form_data,
-                    headers=self.headers
+                    self.form_action_url, data=form_data, headers=self.headers
                 )
                 response.raise_for_status()
                 return response.text
@@ -70,8 +68,12 @@ class Scraper:
                 main_sup = cells[2].text.strip()
 
                 if link:
-                    pdf_url = link["onclick"].split("'")[1]  # Extracting the URL from onclick
-                    pdf_url = urljoin(self.cl_base_url, pdf_url)  # Make it an absolute URL
+                    pdf_url = link["onclick"].split("'")[
+                        1
+                    ]  # Extracting the URL from onclick
+                    pdf_url = urljoin(
+                        self.cl_base_url, pdf_url
+                    )  # Make it an absolute URL
                     pdf_name = f"{list_type} | {main_sup}"
                     pdfs.append({"pdf_name": pdf_name, "pdf_url": pdf_url})
 
@@ -100,7 +102,9 @@ class Scraper:
 
         try:
             with self._create_session() as session:
-                response = session.post(self.case_search_url, data=form_data, headers=self.headers)
+                response = session.post(
+                    self.case_search_url, data=form_data, headers=self.headers
+                )
                 response.raise_for_status()
 
                 # Get the PHPSESSID cookie
@@ -110,7 +114,9 @@ class Scraper:
 
                 # Parse response to get case_id
                 soup = BeautifulSoup(response.text, "html.parser")
-                case_link = soup.find("a", href=lambda x: x and "enq_caseno.php?case_id=" in x)
+                case_link = soup.find(
+                    "a", href=lambda x: x and "enq_caseno.php?case_id=" in x
+                )
 
                 if not case_link:
                     return None
@@ -150,10 +156,7 @@ class Scraper:
 
         case_id, session_cookie = result
         case_details_url = f"{self.case_details_url}?case_id={case_id}"
-        headers = {
-            **self.headers,
-            "Cookie": f"PHPSESSID={session_cookie}"
-        }
+        headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
 
         try:
             with self._create_session() as session:

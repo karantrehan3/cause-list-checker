@@ -1,13 +1,15 @@
-from fastapi import HTTPException
-from datetime import datetime, timedelta
-import json
 import asyncio
-from typing import List, Dict, Any, Optional
-from app.managers.scraper import Scraper
+import json
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+from fastapi import HTTPException
+
+from app.config import settings
 from app.managers.pdf_searcher import PDFSearcher
+from app.managers.scraper import Scraper
 from app.services.emailer import Emailer
 from app.utils.error_handler import ErrorHandler
-from app.config import settings
 
 search_lock = asyncio.Lock()
 
