@@ -1,0 +1,26 @@
+# SAM configuration file for easier deployments
+
+version = 0.1
+
+[default]
+[default.global]
+[default.global.parameters]
+stack_name = "cause-list-checker"
+s3_bucket = ""  # SAM will create a bucket automatically
+s3_prefix = "cause-list-checker"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "file://deploy-parameters.json"
+image_repositories = []
+
+[default.build]
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy]
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+fail_on_empty_changeset = false 

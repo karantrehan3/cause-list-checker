@@ -1,0 +1,46 @@
+[
+  {
+    "ParameterKey": "AuthHeader",
+    "ParameterValue": "Bearer your-auth-token-here"
+  },
+  {
+    "ParameterKey": "RequestBodyJson",
+    "ParameterValue": "{\"search_terms\": [\"your\", \"keyword\", \"here\"], \"date\": null, \"recipient_emails\": [\"your-email@example.com\"]}"
+  },
+  {
+    "ParameterKey": "SenderEmail",
+    "ParameterValue": "your-email@gmail.com"
+  },
+  {
+    "ParameterKey": "SenderPassword",
+    "ParameterValue": "your-app-password-here"
+  },
+  {
+    "ParameterKey": "SenderName",
+    "ParameterValue": "Cause List Checker"
+  },
+  {
+    "ParameterKey": "EmailRecipients",
+    "ParameterValue": "recipient1@example.com,recipient2@example.com"
+  },
+  {
+    "ParameterKey": "CLBaseURL",
+    "ParameterValue": "https://your-causelist-base-url.com"
+  },
+  {
+    "ParameterKey": "MainBaseURL",
+    "ParameterValue": "https://your-main-base-url.com"
+  },
+  {
+    "ParameterKey": "FormActionURL",
+    "ParameterValue": "https://your-site.com/form-action"
+  },
+  {
+    "ParameterKey": "CaseSearchURL",
+    "ParameterValue": "https://your-site.com/case-search"
+  },
+  {
+    "ParameterKey": "CaseDetailsURL",
+    "ParameterValue": "https://your-site.com/case-details"
+  }
+]
