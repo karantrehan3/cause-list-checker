@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  AuthHeader:
+    Type: String
+    NoEcho: true
+    Description: Authorization header value for API calls
+  
+  RequestBodyJson:
+    Type: String
+    Description: JSON request body for scheduled calls (escape quotes with \")
+    Default: '{"search_terms": ["your", "keywords"], "date": null, "recipient_emails": ["your-email@example.com"]}'
+  
+  SenderEmail:
+    Type: String
+    Description: Email address for sending notifications
+    Default: "your-email@gmail.com"
+  
+  SenderPassword:
+    Type: String
+    NoEcho: true
+    Description: Email password or app-specific password
+  
+  SenderName:
+    Type: String
+    Description: Display name for email sender
+    Default: "Cause List Checker"
+  
+  EmailRecipients:
+    Type: String
+    Description: Comma-separated list of email recipients
+    Default: "your-email@example.com"
+  
+  CLBaseURL:
+    Type: String
+    Description: Base URL for cause list service
+    Default: "https://example.com/causelist"
+  
+  MainBaseURL:
+    Type: String
+    Description: Main website base URL
+    Default: "https://example.com"
+  
+  FormActionURL:
+    Type: String
+    Description: Form submission endpoint
+    Default: "https://example.com/form"
+  
+  CaseSearchURL:
+    Type: String
+    Description: Case search endpoint
+    Default: "https://example.com/search"
+  
+  CaseDetailsURL:
+    Type: String
+    Description: Case details endpoint
+    Default: "https://example.com/details"
+
+Globals:
+  Function:
+    Environment:
+      Variables:
+        PYTHONPATH: /var/task
+
+Resources:
+  # Parameter Store for configuration (FREE)
+  AuthHeaderParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/auth-header"
+      Type: SecureString
+      Value: !Ref AuthHeader
+      Description: "Authorization header for cause list checker"
+
+  RequestBodyParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/request-body"
+      Type: String
+      Value: !Ref RequestBodyJson
+      Description: "Request body JSON for scheduled triggers"
+
+  SenderPasswordParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/sender-password"
+      Type: SecureString
+      Value: !Ref SenderPassword
+      Description: "Email sender password"
+
+  # Lambda function
+  CauseListCheckerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: app.server.handler
+      Runtime: python3.9
+      Timeout: 900  # 15 minutes max for Lambda
+      MemorySize: 512  # Increased for PDF processing
+      Role: !GetAtt CauseListCheckerFunctionRole.Arn
+      Events:
+        HealthCheck:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+        MainEndpoint:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: any
+        ScheduledTrigger:
+          Type: Schedule
+          Properties:
+            Schedule: cron(30 4,7,8,9,10,11,12,13,14,15,16,17 * * ? *) # Runs at 10 AM, 1 - 10 PM IST (converted to UTC)
+            Description: "Trigger cause list checker at specific times"
+            Input: !Sub |
+              {
+                "path": "/search/cause-list",
+                "httpMethod": "POST",
+                "headers": {
+                  "Authorization": "{{resolve:ssm-secure:/${AWS::StackName}/auth-header}}",
+                  "Content-Type": "application/json"
+                },
+                "body": "{{resolve:ssm:/${AWS::StackName}/request-body}}"
+              }
+      Environment:
+        Variables:
+          # Application configuration
+          AUTH_TOKEN: !Sub "{{resolve:ssm-secure:/${AWS::StackName}/auth-header}}"
+          SENDER_EMAIL: !Ref SenderEmail
+          SENDER_PASSWORD: !Sub "{{resolve:ssm-secure:/${AWS::StackName}/sender-password}}"
+          SENDER_NAME: !Ref SenderName
+          SMTP_SERVER: "smtp.gmail.com"
+          SMTP_PORT: "587"
+          CL_BASE_URL: !Ref CLBaseURL
+          MAIN_BASE_URL: !Ref MainBaseURL
+          FORM_ACTION_URL: !Ref FormActionURL
+          CASE_SEARCH_URL: !Ref CaseSearchURL
+          CASE_DETAILS_URL: !Ref CaseDetailsURL
+          EMAIL_RECIPIENTS: !Ref EmailRecipients
+          STACK_NAME: !Ref AWS::StackName
+
+  # IAM role for Lambda to access Parameter Store
+  CauseListCheckerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ParameterStoreAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: 
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/*"
+
+Outputs:
+  ApiGatewayEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  
+  LambdaFunctionName:
+    Description: "Lambda Function Name"
+    Value: !Ref CauseListCheckerFunction
