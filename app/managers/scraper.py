@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
 import certifi
@@ -129,32 +129,69 @@ class Scraper:
             print(f"Error making request: {e}", flush=True)
             return None
 
+    def parse_case_listing_details_section(
+        self, html_content: str
+    ) -> Tuple[Dict[str, str], str]:
+        """
+        Parses the 'Case Listing Details' section from the given HTML content.
+        Returns a tuple of (judge_details_dict, extracted_rows_html), where:
+        - judge_details_dict: Dict[str, str] mapping headers to values
+        - extracted_rows_html: str HTML string containing the target row and the next 2 rows
+        """
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+            target_row = soup.find("th", string="Case Listing Details")
+            if not target_row:
+                return {}, ""
+            target_tr = target_row.find_parent("tr")
+            if not target_tr:
+                return {}, ""
+
+            # Add the target row and the next 2 rows to the new table (without extracting)
+            rows_to_add = [target_tr]
+            current_row = target_tr
+            headers_row = None
+            values_row = None
+            for i in range(2):
+                next_row = current_row.find_next_sibling("tr")
+                if next_row:
+                    rows_to_add.append(next_row)
+                    if i == 0:
+                        headers_row = next_row
+                    elif i == 1:
+                        values_row = next_row
+                    current_row = next_row
+                else:
+                    break
+
+            judge_details_dict = {}
+            if headers_row and values_row:
+                headers = [th.get_text(strip=True) for th in headers_row.find_all("th")]
+                values = [td.get_text(strip=True) for td in values_row.find_all("td")]
+                if len(headers) == len(values):
+                    judge_details_dict = dict(zip(headers, values))
+
+            return judge_details_dict
+        except Exception as e:
+            print(f"Error parsing case listing details: {e}", flush=True)
+            return {}, ""
+
     def get_case_details(
-        self, case_details: Optional[Dict[str, str]] = None
+        self, case_id: Optional[str] = None, session_cookie: Optional[str] = None
     ) -> Optional[str]:
         """
-        Get case details by first obtaining the case ID and session cookie, then fetching details.
+        Get case details by fetching the case details page using case ID and session cookie.
 
         Args:
-            case_details (Optional[Dict[str, str]]):
-                A dictionary containing:
-                - "type" (str): Type of the case (e.g., 'CR').
-                - "no" (str): Case number (e.g., '1234').
-                - "year" (str): Year of the case (e.g., '2015').
+            case_id (Optional[str]): The case ID obtained from case search.
+            session_cookie (Optional[str]): The PHPSESSID cookie value for authentication.
 
         Returns:
             Optional[str]: HTML content containing case details if successful, otherwise None.
         """
-        if not case_details:
+        if not case_id or not session_cookie:
             return None
 
-        result = self.submit_view_case_status_form(
-            case_details["type"], case_details["no"], case_details["year"]
-        )
-        if not result:
-            return None
-
-        case_id, session_cookie = result
         case_details_url = f"{self.case_details_url}?case_id={case_id}"
         headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
 
@@ -185,3 +222,243 @@ class Scraper:
         except requests.exceptions.RequestException as e:
             print(f"Error making request: {e}", flush=True)
             return None
+
+    def get_judge_code(self, judge_name: str, session_cookie: str) -> Optional[str]:
+        """
+        Get judge code by fetching the judge registration page and parsing the dropdown.
+
+        Args:
+            judge_name (str): The name of the judge (e.g., "MR. JUSTICE HARKESH MANUJA")
+            session_cookie (str): The PHPSESSID cookie value
+
+        Returns:
+            Optional[str]: The judge code value if found, otherwise None
+        """
+        judge_reg_url = f"{self.main_base_url}/home.php?search_param=jud_reg_cl"
+        headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
+
+        try:
+            with self._create_session() as session:
+                response = session.get(judge_reg_url, headers=headers)
+                response.raise_for_status()
+
+                soup = BeautifulSoup(response.text, "html.parser")
+
+                # Find the select dropdown using the xpath equivalent
+                # /html/body/table[1]/tbody/tr[5]/td/table/tbody/tr/td[2]/table/tbody/tr[3]/td[2]/select
+                select_element = soup.find("select", {"name": "t_jud_code"})
+
+                if not select_element:
+                    print(f"Could not find judge dropdown select element", flush=True)
+                    return None
+
+                # Find the option with matching judge name
+                for option in select_element.find_all("option"):
+                    if (
+                        judge_name.lower()
+                        in option.get_text(strip=True).replace("HON'BLE ", "").lower()
+                    ):
+                        return option.get("value")
+
+                print(f"Could not find judge code for judge '{judge_name}'", flush=True)
+                return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error making request: {e}", flush=True)
+            return None
+
+    def get_judge_registration_html(
+        self, date: str, judge_code: str, session_cookie: str
+    ) -> Optional[str]:
+        """
+        Get judge registration HTML content by submitting the form with date and judge code.
+
+        Args:
+            date (str): The cause list date in format "DD/MM/YYYY" (e.g., "28/07/2025")
+            judge_code (str): The judge code (e.g., "695")
+            session_cookie (str): The PHPSESSID cookie value for authentication.
+
+        Returns:
+            Optional[str]: HTML content containing judge registration details if successful, otherwise None.
+        """
+        judge_reg_url = f"{self.main_base_url}/home.php?search_param=jud_reg_cl"
+        headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
+
+        # Form data as specified in the curl command
+        form_data = {"cl_date": date, "t_jud_code": judge_code, "submit": "Search Case"}
+
+        try:
+            with self._create_session() as session:
+                response = session.post(judge_reg_url, data=form_data, headers=headers)
+                response.raise_for_status()
+
+                html_content = response.text if response.text else None
+
+                if html_content is None:
+                    return None
+
+                # Replace relative paths with absolute URLs
+                replacements = {
+                    "../data/": f"{self.main_base_url}/data/",
+                    "../images/": f"{self.main_base_url}/images/",
+                    "../css/": f"{self.main_base_url}/css/",
+                    "../js/": f"{self.main_base_url}/js/",
+                    "href='./": f"href='{self.main_base_url}/",
+                    "href='../": f"href='{self.main_base_url}/",
+                }
+
+                for old, new in replacements.items():
+                    html_content = html_content.replace(old, new)
+
+                return html_content
+        except requests.exceptions.RequestException as e:
+            print(f"Error making request: {e}", flush=True)
+            return None
+
+    def _parse_judge_registration_and_create_table(
+        self, judge_registration_html: str, search_terms: str
+    ) -> Optional[str]:
+        """
+        Parse judge registration HTML to find rows containing search terms and create a combined table HTML.
+
+        Args:
+            judge_registration_html (str): The HTML content of the judge registration page
+            search_terms (str): The search terms to look for in the HTML
+
+        Returns:
+            Optional[str]: Combined table HTML if search terms are found, None otherwise
+        """
+        soup = BeautifulSoup(judge_registration_html, "html.parser")
+        text_content = soup.get_text().lower()
+
+        if not any(term.lower() in text_content for term in search_terms):
+            return None
+
+        # Find the deepest nested tr elements that contain the search term
+        max_depth = 0
+        deepest_rows = set()
+        header_max_depth = 0
+        header_row = set()
+
+        for tr in soup.find_all("tr"):
+            depth = len(tr.find_parents("table"))
+            if "CAUSE LIST FOR".lower() in tr.get_text().lower():
+                if depth > header_max_depth:
+                    # Found deeper rows, discard previous ones
+                    header_max_depth = depth
+                    header_row.clear()
+                    header_row.add(tr)
+                elif depth == header_max_depth:
+                    # Same depth, add to set (automatically handles duplicates)
+                    header_row.add(tr)
+
+            if any(term.lower() in tr.get_text().lower() for term in search_terms):
+                if depth > max_depth:
+                    # Found deeper rows, discard previous ones
+                    max_depth = depth
+                    deepest_rows.clear()
+                    deepest_rows.add(tr)
+                elif depth == max_depth:
+                    # Same depth, add to set (automatically handles duplicates)
+                    deepest_rows.add(tr)
+                # Rows with depth < max_depth are ignored (memory efficient)
+
+        if deepest_rows:
+            # Convert set to list and combine all unique rows into a single table
+            header_row = list(header_row)
+            unique_rows = list(deepest_rows)
+
+            # Determine the maximum number of columns from data rows
+            max_columns = 0
+            for tr in unique_rows:
+                cells = tr.find_all(["td", "th"])
+                max_columns = max(max_columns, len(cells))
+
+            # Create the combined table HTML
+            combined_table_html = '<center><table border="1" cellpadding="5" cellspacing="0" class="case-listing-details">'
+
+            # Add header rows with colspan to span all columns
+            for tr in header_row:
+                # Create a copy of the row to modify
+                header_copy = BeautifulSoup(str(tr), "html.parser")
+                header_tr = header_copy.find("tr")
+                if header_tr:
+                    # Find the first cell (td or th) and add colspan
+                    first_cell = header_tr.find(["td", "th"])
+                    if first_cell and max_columns > 0:
+                        first_cell["colspan"] = str(max_columns)
+                        # Remove any other cells in the header row
+                        other_cells = first_cell.find_next_siblings(["td", "th"])
+                        for cell in other_cells:
+                            cell.decompose()
+                    combined_table_html += str(header_copy)
+
+            for tr in unique_rows:
+                combined_table_html += str(tr)
+            combined_table_html += "</table></center>"
+
+            return combined_table_html
+
+        return None
+
+    def get_case_details_and_judge_details(
+        self,
+        case_details: Optional[Dict[str, str]] = None,
+        search_terms: str = None,
+        date: str = None,
+    ) -> Optional[Tuple[str, str]]:
+        """
+        Get case details by first obtaining the case ID and session cookie, then fetching details.
+
+        Args:
+            case_details (Optional[Dict[str, str]]):
+                A dictionary containing:
+                - "type" (str): Type of the case (e.g., 'CR').
+                - "no" (str): Case number (e.g., '1234').
+                - "year" (str): Year of the case (e.g., '2015').
+            search_terms (str): The search terms to search for in the judge registration HTML.
+            date (str): The cause list date in format "DD/MM/YYYY" (e.g., "28/07/2025").
+        Returns:
+            Optional[Tuple[str, str]]:
+                Tuple of (html_content, combined_table_html) if successful,
+                None if any step fails.
+        """
+        if not case_details:
+            return None
+
+        result = self.submit_view_case_status_form(
+            case_details["type"], case_details["no"], case_details["year"]
+        )
+        if not result:
+            return None
+
+        case_id, session_cookie = result
+
+        html_content = self.get_case_details(case_id, session_cookie)
+        if not html_content:
+            return None
+
+        judge_details_dict = self.parse_case_listing_details_section(html_content)
+        judge_name = judge_details_dict.get("Bench", "").replace("HON'BLE ", "")
+        combined_table_html = None
+
+        if not judge_name:
+            return None
+
+        judge_code = self.get_judge_code(judge_name, session_cookie)
+
+        if not judge_code:
+            return None
+
+        judge_registration_html = self.get_judge_registration_html(
+            date, judge_code, session_cookie
+        )
+
+        if not judge_registration_html:
+            return None
+
+        combined_table_html = self._parse_judge_registration_and_create_table(
+            judge_registration_html, search_terms
+        )
+
+        return html_content, combined_table_html

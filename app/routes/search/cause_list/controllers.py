@@ -38,9 +38,18 @@ async def scrape_search_and_notify(
         async with search_lock:
             try:
                 # Step 1 & 2: Scrape the page and get PDF links & Case details in parallel
-                pdfs, case_details_html = await asyncio.gather(
+                pdfs, result = await asyncio.gather(
                     asyncio.to_thread(scraper.parse_table_and_download_pdfs, date),
-                    asyncio.to_thread(scraper.get_case_details, case_details),
+                    asyncio.to_thread(
+                        scraper.get_case_details_and_judge_details,
+                        case_details,
+                        search_terms,
+                        date,
+                    ),
+                )
+
+                case_details_html, term_found_in_regular_cause_list = (
+                    result if result is not None else (None, "")
                 )
 
                 if not pdfs:
@@ -52,6 +61,7 @@ async def scrape_search_and_notify(
                         pdfs,
                         [],
                         case_details_html,
+                        term_found_in_regular_cause_list,
                     )
                     print("ALERT! No Cause Lists found", flush=True)
                     return
@@ -80,6 +90,7 @@ async def scrape_search_and_notify(
                     pdfs,
                     results,
                     case_details_html,
+                    term_found_in_regular_cause_list,
                 )
 
                 print(
@@ -107,6 +118,7 @@ def send_email(
     pdfs: List[Dict[str, str]],
     results: List[Dict[str, Any]],
     case_details_html: Optional[str] = None,
+    term_found_in_regular_cause_list: Optional[str] = None,
 ) -> None:
     context = {
         "search_terms": search_terms,
@@ -114,6 +126,7 @@ def send_email(
         "results": results,
         "pdfs": pdfs,
         "case_details_html": case_details_html,
+        "term_found_in_regular_cause_list": term_found_in_regular_cause_list,
     }
     try:
         emailer.send_email(

@@ -140,6 +140,23 @@
             margin: 30px auto;
             width: 80%;
         ">
+        <div class="regular-cause-list">
+            <h2>Judge-Wise Regular Cause List</h2>
+            {% if term_found_in_regular_cause_list %}
+            <h3>✅ Search term found in Judge-Wise Regular Cause List</h3>
+            {{ term_found_in_regular_cause_list | safe }}
+            {% else %}
+            <h3>❌ Search term not found in Judge-Wise Regular Cause List</h3>
+            {% endif %}
+        </div>
+        <br>
+        <hr style="
+            border: 0;
+            height: 5px;
+            background: #000000;
+            margin: 30px auto;
+            width: 80%;
+        ">
         <div class="case-details">
             <h2>Case Status Details</h2>
             {{ case_details_html | safe }}
