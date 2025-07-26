@@ -176,6 +176,101 @@ class Scraper:
             print(f"Error parsing case listing details: {e}", flush=True)
             return {}, ""
 
+    def _highlight_specific_cells(self, html_content: str) -> str:
+        """
+        Add yellow highlighting to specific cells in the HTML content.
+
+        Highlights:
+        - "Status" cell and its corresponding value cell
+        - "Takenup date" cell and its corresponding value cell
+        - The complete last row found in the "Case Listing Details" section
+
+        Args:
+            html_content (str): The HTML content to process
+
+        Returns:
+            str: HTML content with highlighted cells
+        """
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+
+            # Highlight "Status" and its value cell
+            status_cells = soup.find_all(
+                ["td", "th"], string=lambda text: text and text.strip() == "Status"
+            )
+            for status_cell in status_cells:
+                # Highlight the status header cell
+                status_cell["style"] = "background-color: #ffff00;"  # Yellow highlight
+
+                # Find and highlight the corresponding value cell (next cell in the same row)
+                parent_row = status_cell.find_parent("tr")
+                if parent_row:
+                    cells = parent_row.find_all(["td", "th"])
+                    try:
+                        status_index = cells.index(status_cell)
+                        if status_index + 1 < len(cells):
+                            value_cell = cells[status_index + 1]
+                            value_cell["style"] = (
+                                "background-color: #ffff00;"  # Yellow highlight
+                            )
+                    except ValueError:
+                        pass  # Cell not found in the list
+
+            # Highlight "Takenup date" and its value cell
+            takenup_cells = soup.find_all(
+                ["td", "th"],
+                string=lambda text: text and "Takenup date" in text.strip(),
+            )
+            for takenup_cell in takenup_cells:
+                # Highlight the takenup date header cell
+                takenup_cell["style"] = "background-color: #ffff00;"  # Yellow highlight
+
+                # Find and highlight the corresponding value cell (next cell in the same row)
+                parent_row = takenup_cell.find_parent("tr")
+                if parent_row:
+                    cells = parent_row.find_all(["td", "th"])
+                    try:
+                        takenup_index = cells.index(takenup_cell)
+                        if takenup_index + 1 < len(cells):
+                            value_cell = cells[takenup_index + 1]
+                            value_cell["style"] = (
+                                "background-color: #ffff00;"  # Yellow highlight
+                            )
+                    except ValueError:
+                        pass  # Cell not found in the list
+
+            # Highlight the complete 2nd row after "Case Listing Details" section
+            # Using the same logic as parse_case_listing_details_section
+            target_row = soup.find("th", string="Case Listing Details")
+            if target_row:
+                target_tr = target_row.find_parent("tr")
+                if target_tr:
+                    current_row = target_tr
+                    values_row = None
+
+                    # Get the 2nd row after the target row (same logic as parse_case_listing_details_section)
+                    for i in range(2):
+                        next_row = current_row.find_next_sibling("tr")
+                        if next_row:
+                            if i == 1:  # This is the 2nd row after target row
+                                values_row = next_row
+                            current_row = next_row
+                        else:
+                            break
+
+                    # Highlight the 2nd row after target row
+                    if values_row:
+                        cells = values_row.find_all(["td", "th"])
+                        for cell in cells:
+                            cell["style"] = (
+                                "background-color: #ffff00;"  # Yellow highlight
+                            )
+
+            return str(soup)
+        except Exception as e:
+            print(f"Error highlighting cells: {e}", flush=True)
+            return html_content
+
     def get_case_details(
         self, case_id: Optional[str] = None, session_cookie: Optional[str] = None
     ) -> Optional[str]:
@@ -217,6 +312,9 @@ class Scraper:
 
                 for old, new in replacements.items():
                     html_content = html_content.replace(old, new)
+
+                # Add yellow highlighting to specific cells
+                html_content = self._highlight_specific_cells(html_content)
 
                 return html_content
         except requests.exceptions.RequestException as e:
