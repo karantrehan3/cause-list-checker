@@ -28,6 +28,7 @@ class Scraper:
             "../js/": f"{self.main_base_url}/js/",
             "href='./": f"href='{self.main_base_url}/",
             "href='../": f"href='{self.main_base_url}/",
+            "href='enq_caseno": f"href='{self.main_base_url}/enq_caseno",
         }
 
     def _create_session(self) -> requests.Session:
@@ -507,6 +508,8 @@ class Scraper:
                 combined_table_html += str(tr)
             combined_table_html += "</table></center>"
 
+            for old, new in self._url_replacements.items():
+                combined_table_html = combined_table_html.replace(old, new)
             return combined_table_html
 
         return None
