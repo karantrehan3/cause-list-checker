@@ -13,10 +13,11 @@ from app.config import settings
 class Scraper:
     def __init__(self):
         self.cl_base_url = settings.CL_BASE_URL
-        self.main_base_url = settings.MAIN_BASE_URL
-        self.form_action_url = settings.FORM_ACTION_URL
+        self.cl_form_action_url = settings.CL_FORM_ACTION_URL
+        self.cl_judge_wise_regular_url = settings.CL_JUDGE_WISE_REGULAR_URL
         self.case_search_url = settings.CASE_SEARCH_URL
         self.case_details_url = settings.CASE_DETAILS_URL
+        self.main_base_url = settings.MAIN_BASE_URL
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
@@ -145,7 +146,7 @@ class Scraper:
         }
 
         response = self._make_request(
-            "POST", self.form_action_url, data=form_data, headers=self.headers
+            "POST", self.cl_form_action_url, data=form_data, headers=self.headers
         )
         if response is None:
             raise requests.exceptions.RequestException("Failed to submit view CL form")
@@ -365,10 +366,11 @@ class Scraper:
         Returns:
             Optional[str]: The judge code value if found, otherwise None
         """
-        judge_reg_url = f"{self.main_base_url}/home.php?search_param=jud_reg_cl"
         headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
 
-        response = self._make_request("GET", judge_reg_url, headers=headers)
+        response = self._make_request(
+            "GET", self.cl_judge_wise_regular_url, headers=headers
+        )
         if response is None:
             return None
 
@@ -407,14 +409,13 @@ class Scraper:
         Returns:
             Optional[str]: HTML content containing judge registration details if successful, otherwise None.
         """
-        judge_reg_url = f"{self.main_base_url}/home.php?search_param=jud_reg_cl"
         headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
 
         # Form data as specified in the curl command
         form_data = {"cl_date": date, "t_jud_code": judge_code, "submit": "Search Case"}
 
         response = self._make_request(
-            "POST", judge_reg_url, data=form_data, headers=headers
+            "POST", self.cl_judge_wise_regular_url, data=form_data, headers=headers
         )
         if response is None:
             return None

@@ -127,6 +127,11 @@ def send_email(
         "pdfs": pdfs,
         "case_details_html": case_details_html,
         "term_found_in_regular_cause_list": term_found_in_regular_cause_list,
+        "urls": {
+            "cl_base_url": settings.CL_BASE_URL,
+            "case_search_url": settings.CASE_SEARCH_URL,
+            "cl_judge_wise_regular_url": settings.CL_JUDGE_WISE_REGULAR_URL,
+        },
     }
     try:
         emailer.send_email(
