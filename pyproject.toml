@@ -1,3 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cause-list-checker"
+version = "0.1.0"
+description = "A tool to check cause lists"
+authors = [{name = "Karan Trehan", email = "karantrehan3@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "beautifulsoup4",
+    "certifi",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+# Code formatting configuration
 [tool.black]
 line-length = 88
 target-version = ['py312']
@@ -11,3 +34,18 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
+
+# Python cache configuration
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+# Configure Python to use centralized cache
+[tool.poetry]
+name = "cause-list-checker"
+version = "0.1.0"
+description = "A tool to check cause lists"
+authors = ["Your Name <your.email@example.com>"]
+
+# Add environment configuration for centralized cache
+[tool.poetry.scripts]
+start = "app.server:main"
