@@ -13,6 +13,8 @@ An internal tool built for searching case details on Punjab and Haryana High Cou
 - **Email Notifications**: Automatic email alerts with search results
 - **Case Details Integration**: Fetches detailed case information from the court website
 - **Docker Support**: Easy deployment and setup with Docker
+- **Queue Management**: Asynchronous task queue for managing inbound requests with retry logic
+- **Weekend Date Processing**: Automatically processes weekend dates when searching on Fridays/Saturdays/Sundays
 - **Rate Limiting**: Built-in protection against too many concurrent requests
 
 ## Architecture
@@ -20,6 +22,7 @@ An internal tool built for searching case details on Punjab and Haryana High Cou
 The application follows a modular architecture with the following components:
 
 - **FastAPI Server**: RESTful API endpoints for case search operations
+- **Queue Manager**: Asynchronous task queue for processing search requests with retry logic
 - **PDF Searcher**: Searches through downloaded cause list PDFs for specific terms
 - **Web Scraper**: Downloads cause list PDFs and extracts case details from court website
 - **Email Service**: Sends formatted email notifications with search results
@@ -139,20 +142,44 @@ curl -X POST http://localhost:3080/search/cause-list \
 
 ```json
 {
-  "message": "Search initiated successfully",
-  "search_terms": ["CWP-12345-2023"],
-  "date": "15/12/2024",
-  "recipient_emails": ["lawyer@example.com"]
+  "message": "Search and notification process queued for 1 date(s)",
+  "dates": ["15/12/2024"],
+  "queue_size": 1
 }
 ```
 
+## Queue Management
+
+The application now includes a robust queue management system that handles inbound requests asynchronously:
+
+### Features
+
+- **Asynchronous Processing**: All search requests are queued and processed in the background
+- **Retry Logic**: Failed tasks are automatically retried up to 3 times with exponential backoff
+- **Concurrent Request Handling**: Multiple requests can be queued simultaneously
+- **Task Tracking**: Each task has a unique ID for tracking and debugging
+- **Queue Status Monitoring**: Real-time queue status and processor health
+
+### Weekend Date Processing
+
+The system automatically handles weekend date processing:
+
+- **Friday Searches**: Automatically includes Saturday, Sunday, and Monday
+- **Saturday Searches**: Automatically includes Sunday and Monday
+- **Sunday Searches**: Automatically includes Monday
+- **Weekday Searches**: Process only the specified date
+
+This ensures comprehensive coverage when searching around weekends.
+
 ## How It Works
 
-1. **PDF Download**: The scraper downloads cause list PDFs for the specified date from the Punjab and Haryana High Court website
-2. **Case Details Fetching**: Simultaneously fetches detailed case information from the court database
-3. **PDF Search**: Searches through downloaded PDFs for the specified search terms
-4. **Email Notification**: Sends a formatted email with search results to all recipients
-5. **Error Handling**: Comprehensive error handling with email notifications for failures
+1. **Request Queuing**: Search requests are added to an asynchronous queue
+2. **Background Processing**: The queue processor handles tasks one at a time
+3. **PDF Download**: The scraper downloads cause list PDFs for the specified date(s) from the Punjab and Haryana High Court website
+4. **Case Details Fetching**: Simultaneously fetches detailed case information from the court database
+5. **PDF Search**: Searches through downloaded PDFs for the specified search terms
+6. **Email Notification**: Sends a formatted email with search results to all recipients
+7. **Error Handling**: Comprehensive error handling with automatic retries and email notifications for failures
 
 ## Email Notifications
 
@@ -190,6 +217,7 @@ cause-list-checker/
 │   ├── server.py              # FastAPI application
 │   ├── managers/
 │   │   ├── pdf_searcher.py    # PDF search functionality
+│   │   ├── queue.py           # Queue management system
 │   │   └── scraper.py         # Web scraping logic
 │   ├── routes/
 │   │   ├── auth.py            # Authentication middleware
@@ -198,7 +226,8 @@ cause-list-checker/
 │   ├── services/
 │   │   └── emailer/           # Email service
 │   └── utils/
-│       └── error_handler.py   # Error handling utilities
+│       ├── error_handler.py   # Error handling utilities
+│       └── helpers.py         # Helper functions
 ├── docker-compose.yml         # Docker configuration
 ├── Dockerfile                 # Docker image definition
 └── requirements.txt           # Python dependencies
@@ -220,9 +249,15 @@ cause-list-checker/
    - Check network connectivity
    - Ensure the date format is correct (DD/MM/YYYY)
 
-3. **Rate Limiting**:
-   - The application prevents concurrent searches
-   - Wait for the current search to complete before initiating another
+3. **Queue Processing Issues**:
+
+   - Check application logs for task execution details
+   - Monitor queue status for stuck tasks
+   - Verify the queue processor is running
+
+4. **Rate Limiting**:
+   - The application prevents concurrent searches through queue management
+   - Requests are processed sequentially to avoid overwhelming the court website
 
 ### Logs
 
@@ -236,10 +271,19 @@ docker-compose logs -f app
 # Check the terminal where uvicorn is running
 ```
 
+### Queue Status
+
+Monitor queue status through application logs:
+
+- Task queuing: "Task {task_id} added to queue"
+- Task execution: "Executing task {task_id} (attempt {attempt}/{max_attempts})"
+- Task completion: "Task {task_id} completed successfully"
+- Task failures: "Task {task_id} failed: {error}"
+
 ## Security Considerations
 
 - **Authentication**: All API endpoints require a valid AUTH_TOKEN
-- **Rate Limiting**: Built-in protection against concurrent requests
+- **Queue Management**: Asynchronous processing prevents request overload
 - **Environment Variables**: Sensitive data stored in `.env` file (not committed to version control)
 - **Docker Security**: Container runs with limited resources and non-root user
 
