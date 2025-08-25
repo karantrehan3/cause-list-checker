@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
@@ -383,7 +384,7 @@ class Scraper:
         if not select_element:
             print(f"Could not find judge dropdown select element", flush=True)
             return None
-        
+
         # Clean the judge name by removing court room pattern
         cleaned_judge_name = re.sub(r"\s*\(Court Room No\.\s*\d+\)\s*$", "", judge_name)
 
