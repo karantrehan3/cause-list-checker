@@ -383,11 +383,14 @@ class Scraper:
         if not select_element:
             print(f"Could not find judge dropdown select element", flush=True)
             return None
+        
+        # Clean the judge name by removing court room pattern
+        cleaned_judge_name = re.sub(r"\s*\(Court Room No\.\s*\d+\)\s*$", "", judge_name)
 
         # Find the option with matching judge name
         for option in select_element.find_all("option"):
             if (
-                judge_name.lower()
+                cleaned_judge_name.lower()
                 in option.get_text(strip=True).replace("HON'BLE ", "").lower()
             ):
                 return option.get("value")
