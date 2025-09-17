@@ -9,6 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from app.config import settings
+from app.managers.pdf_tracker import pdf_tracker
 
 
 class Scraper:
@@ -153,7 +154,19 @@ class Scraper:
             raise requests.exceptions.RequestException("Failed to submit view CL form")
         return response.text
 
-    def parse_table_and_download_pdfs(self, date: str) -> List[Dict[str, str]]:
+    def parse_table_and_download_pdfs(
+        self, date: str, search_terms: List[str] = None
+    ) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+        """
+        Parse the cause list table and separate PDFs into existing and new.
+
+        Args:
+            date: The date for which to parse the cause list
+            search_terms: List of search terms used (optional for backward compatibility)
+
+        Returns:
+            Tuple of (existing_pdfs, new_pdfs)
+        """
         page_html = self.submit_view_cl_form(date)
         soup = BeautifulSoup(page_html, "html.parser")
 
@@ -177,7 +190,14 @@ class Scraper:
                     pdf_name = f"{list_type} | {main_sup}"
                     pdfs.append({"pdf_name": pdf_name, "pdf_url": pdf_url})
 
-        return pdfs
+        # Separate existing and new PDFs using the tracker
+        if search_terms is None:
+            search_terms = []  # Default to empty list for backward compatibility
+        existing_pdfs, new_pdfs = pdf_tracker.separate_existing_and_new_pdfs(
+            pdfs, search_terms
+        )
+
+        return existing_pdfs, new_pdfs
 
     def submit_view_case_status_form(
         self, case_type: str, case_no: str, case_year: str

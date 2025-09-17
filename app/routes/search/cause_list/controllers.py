@@ -97,9 +97,11 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
 
     try:
         # Step 1 & 2: Scrape the page and get PDF links & Case details in parallel
-        pdfs, result = await asyncio.gather(
+        pdf_result, case_result = await asyncio.gather(
             asyncio.to_thread(
-                scraper.parse_table_and_download_pdfs, queued_search.date
+                scraper.parse_table_and_download_pdfs,
+                queued_search.date,
+                queued_search.search_terms,
             ),
             asyncio.to_thread(
                 scraper.get_case_details_and_judge_details,
@@ -109,8 +111,12 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
             ),
         )
 
+        # Unpack the PDF results
+        existing_pdfs, new_pdfs = pdf_result
+        pdfs = existing_pdfs + new_pdfs  # Combined list for backward compatibility
+
         case_details_html, term_found_in_regular_cause_list = (
-            result if result is not None else (None, "")
+            case_result if case_result is not None else (None, "")
         )
 
         if not pdfs:
@@ -119,7 +125,8 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
                 queued_search.recipient_emails,
                 queued_search.search_terms,
                 queued_search.date,
-                pdfs,
+                existing_pdfs,
+                new_pdfs,
                 [],
                 case_details_html,
                 term_found_in_regular_cause_list,
@@ -148,7 +155,8 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
             queued_search.recipient_emails,
             queued_search.search_terms,
             queued_search.date,
-            pdfs,
+            existing_pdfs,
+            new_pdfs,
             results,
             case_details_html,
             term_found_in_regular_cause_list,
@@ -177,16 +185,22 @@ def send_email(
     email_list: List[str],
     search_terms: str,
     date: str,
-    pdfs: List[Dict[str, str]],
+    existing_pdfs: List[Dict[str, str]],
+    new_pdfs: List[Dict[str, str]],
     results: List[Dict[str, Any]],
     case_details_html: Optional[str] = None,
     term_found_in_regular_cause_list: Optional[str] = None,
 ) -> None:
+    # Combine existing and new PDFs for backward compatibility
+    all_pdfs = existing_pdfs + new_pdfs
+
     context = {
         "search_terms": search_terms,
         "date": date,
         "results": results,
-        "pdfs": pdfs,
+        "pdfs": all_pdfs,
+        "existing_pdfs": existing_pdfs,
+        "new_pdfs": new_pdfs,
         "case_details_html": case_details_html,
         "term_found_in_regular_cause_list": term_found_in_regular_cause_list,
         "urls": {

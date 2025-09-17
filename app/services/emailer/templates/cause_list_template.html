@@ -139,8 +139,13 @@
           <tbody>
             {% for result in results %}
             <tr>
-              {% set parts = result.pdf_name.split(' | ') %}
-              <td><a href="{{ result.pdf_url }}">{{ parts[0] }}</a></td>
+              {% set parts = result.pdf_name.split(' | ') %} {% set is_new =
+              result in new_pdfs %}
+              <td>
+                <a href="{{ result.pdf_url }}">
+                  {% if is_new %}🆕 {% endif %}{{ parts[0] }}
+                </a>
+              </td>
               <td>{{ result.num_pages }} pages</td>
               <td>
                 {% for term, pages in result.found_pages.items() %}
@@ -177,8 +182,13 @@
             {% for pdf in pdfs %}
             <tr>
               <td>{{ loop.index }}.</td>
-              {% set parts = pdf.pdf_name.split(' | ') %}
-              <td><a href="{{ pdf.pdf_url }}">{{ parts[0] }}</a></td>
+              {% set parts = pdf.pdf_name.split(' | ') %} {% set is_new = pdf in
+              new_pdfs %}
+              <td>
+                <a href="{{ pdf.pdf_url }}">
+                  {% if is_new %}🆕 {% endif %}{{ parts[0] }}
+                </a>
+              </td>
               <td>{{ pdf.num_pages }} pages</td>
               <td>{{ parts[1] if parts|length > 1 else '' }}</td>
             </tr>
