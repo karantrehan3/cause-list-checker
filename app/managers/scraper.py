@@ -456,8 +456,10 @@ class Scraper:
 
         next_date = self._format_api_date(case_data.get("listing_or_proposal_date"))
 
-        # --- Final order link at the top ---
+        # --- Links at the top ---
+        case_status_url = self._case_status_url(case_type, case_no, case_year)
         html = "<center>\n"
+        html += f'<p><a href="{case_status_url}" style="color: #0066cc; font-weight: bold;">View Live Case Status on PHHC</a></p>\n'
         if final_order_url and final_order_date:
             html += f'<p><a href="{final_order_url}" style="color: #0066cc; font-weight: bold;">View Judgement Final Order (Dated {final_order_date})</a></p>\n'
 
@@ -542,9 +544,8 @@ class Scraper:
                 for item in items:
                     pet_code = item.get("pet_code", "")
                     petrf_no = item.get("petrf_no", "")
-                    pet_type_no = (
-                        f"{pet_code}:{petrf_no}" if pet_code else str(petrf_no)
-                    )
+                    pet_label = f"{pet_code}:{petrf_no}" if pet_code else str(petrf_no)
+                    pet_type_no = f'<a href="https://new.phhc.gov.in/copying/highcourt/login">{pet_label}</a>'
                     pet_date = item.get("pet_date", "")
                     pet_type = item.get("pet_type", "")
                     applname = item.get("applname", "")
