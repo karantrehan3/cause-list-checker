@@ -545,7 +545,7 @@ class Scraper:
                     pet_code = item.get("pet_code", "")
                     petrf_no = item.get("petrf_no", "")
                     pet_label = f"{pet_code}:{petrf_no}" if pet_code else str(petrf_no)
-                    pet_type_no = f'<a href="https://new.phhc.gov.in/copying/highcourt/login">{pet_label}</a>'
+                    pet_type_no = f'<a href="https://new.phhc.gov.in/copy_petition_search_page?app_no={petrf_no}">{pet_label}</a>'
                     pet_date = item.get("pet_date", "")
                     pet_type = item.get("pet_type", "")
                     applname = item.get("applname", "")
