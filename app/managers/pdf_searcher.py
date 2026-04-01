@@ -19,42 +19,79 @@ class PDFSearcher:
         pdf_name = pdf["pdf_name"]
         pdf_url = pdf["pdf_url"]
 
-        # Fetch the PDF content
-        response = requests.get(pdf_url)
+        try:
+            # Fetch the PDF content with timeout
+            response = requests.get(pdf_url, timeout=(10, 30))
 
-        # Log the headers of the response
-        if response.status_code != 200:
+            # Log the headers of the response
+            if response.status_code != 200:
+                print(
+                    f"Failed to fetch PDF {pdf_name}: HTTP {response.status_code}",
+                    flush=True,
+                )
+                return None
+
+            found_pages = {term: [] for term in self.search_terms}
+            num_pages = 0
+            # Read the PDF from memory
+            try:
+                with BytesIO(response.content) as pdf_file:
+                    with fitz.open(stream=pdf_file.read(), filetype="pdf") as document:
+                        num_pages = len(document)
+                        # Search for the terms in each page
+                        for page_num in range(num_pages):
+                            try:
+                                page = document.load_page(page_num)
+                                text = page.get_text()
+                                if text:
+                                    for term in self.search_terms:
+                                        if term.lower() in text.lower():
+                                            found_pages[term].append(
+                                                page_num + 1
+                                            )  # Page numbers are 1-based
+                            except Exception as page_error:
+                                print(
+                                    f"Error reading page {page_num + 1} of PDF {pdf_name}: {page_error}",
+                                    flush=True,
+                                )
+                                continue
+
+                response.close()
+
+                pdf["num_pages"] = num_pages
+
+                if any(found_pages.values()):
+                    return {
+                        "pdf_name": pdf_name,
+                        "pdf_url": pdf_url,
+                        "found_pages": found_pages,
+                        "num_pages": num_pages,
+                    }
+                else:
+                    # Log when no terms found for debugging
+                    print(
+                        f"No search terms found in PDF {pdf_name} (searched {num_pages} pages, terms: {self.search_terms})",
+                        flush=True,
+                    )
+                return None
+            except Exception as pdf_error:
+                print(
+                    f"Error parsing PDF {pdf_name}: {pdf_error}",
+                    flush=True,
+                )
+                return None
+        except requests.exceptions.RequestException as e:
+            print(
+                f"Error fetching PDF {pdf_name} from {pdf_url}: {e}",
+                flush=True,
+            )
             return None
-
-        found_pages = {term: [] for term in self.search_terms}
-        num_pages = 0
-        # Read the PDF from memory
-        with BytesIO(response.content) as pdf_file:
-            with fitz.open(stream=pdf_file.read(), filetype="pdf") as document:
-                num_pages = len(document)
-                # Search for the terms in each page
-                for page_num in range(num_pages):
-                    page = document.load_page(page_num)
-                    text = page.get_text()
-                    if text:
-                        for term in self.search_terms:
-                            if term.lower() in text.lower():
-                                found_pages[term].append(
-                                    page_num + 1
-                                )  # Page numbers are 1-based
-
-        response.close()
-
-        pdf["num_pages"] = num_pages
-
-        if any(found_pages.values()):
-            return {
-                "pdf_name": pdf_name,
-                "pdf_url": pdf_url,
-                "found_pages": found_pages,
-                "num_pages": num_pages,
-            }
-        return None
+        except Exception as e:
+            print(
+                f"Unexpected error processing PDF {pdf_name}: {e}",
+                flush=True,
+            )
+            return None
 
     def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         results = []

@@ -1,11 +1,14 @@
 import re
-from typing import Dict, List, Optional, Tuple
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
 import certifi
 import requests
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
+from urllib3.exceptions import IncompleteRead
 from urllib3.util.retry import Retry
 
 from app.config import settings
@@ -16,39 +19,28 @@ class Scraper:
     def __init__(self):
         self.cl_base_url = settings.CL_BASE_URL
         self.cl_form_action_url = settings.CL_FORM_ACTION_URL
-        self.cl_judge_wise_regular_url = settings.CL_JUDGE_WISE_REGULAR_URL
-        self.case_search_url = settings.CASE_SEARCH_URL
-        self.case_details_url = settings.CASE_DETAILS_URL
-        self.main_base_url = settings.MAIN_BASE_URL
+        self.phhc_api_base_url = settings.PHHC_API_BASE_URL
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        # Common URL replacements for HTML content
-        self._url_replacements = {
-            "../data/": f"{self.main_base_url}/data/",
-            "../images/": f"{self.main_base_url}/images/",
-            "../css/": f"{self.main_base_url}/css/",
-            "../js/": f"{self.main_base_url}/js/",
-            "href='./": f"href='{self.main_base_url}/",
-            "href='../": f"href='{self.main_base_url}/",
-            "href='enq_caseno": f"href='{self.main_base_url}/enq_caseno",
         }
 
     def _create_session(self) -> requests.Session:
         """Create a new session with retry logic and SSL verification"""
         session = requests.Session()
         retry = Retry(
-            total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]
+            total=3,
+            backoff_factor=1.0,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET", "POST"],
+            raise_on_status=False,
         )
-        adapter = HTTPAdapter(max_retries=retry)
+        adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=20)
         session.mount("https://", adapter)
-
-        # Configure SSL verification
-        session.verify = certifi.where()  # Use certifi's certificate bundle
+        session.verify = certifi.where()
         return session
 
     def _make_request(
-        self, method: str, url: str, **kwargs
+        self, method: str, url: str, max_retries: int = 3, **kwargs
     ) -> Optional[requests.Response]:
         """
         Make an HTTP request with error handling and session management.
@@ -56,95 +48,57 @@ class Scraper:
         Args:
             method: HTTP method ('GET' or 'POST')
             url: URL to request
+            max_retries: Maximum number of retry attempts for connection errors
             **kwargs: Additional arguments for requests
 
         Returns:
             Response object if successful, None if failed
         """
-        try:
-            with self._create_session() as session:
-                if method.upper() == "GET":
-                    response = session.get(url, **kwargs)
-                elif method.upper() == "POST":
-                    response = session.post(url, **kwargs)
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = (10, 30)
+
+        for attempt in range(max_retries):
+            try:
+                with self._create_session() as session:
+                    if method.upper() == "GET":
+                        response = session.get(url, stream=False, **kwargs)
+                    elif method.upper() == "POST":
+                        response = session.post(url, stream=False, **kwargs)
+                    else:
+                        raise ValueError(f"Unsupported HTTP method: {method}")
+
+                    response.raise_for_status()
+                    return response
+            except (IncompleteRead, requests.exceptions.ConnectionError) as e:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2
+                    print(
+                        f"Connection error on attempt {attempt + 1}/{max_retries} for {method} {url}: {e}. Retrying in {wait_time}s...",
+                        flush=True,
+                    )
+                    time.sleep(wait_time)
+                    continue
                 else:
-                    raise ValueError(f"Unsupported HTTP method: {method}")
+                    print(
+                        f"Error making {method} request to {url} after {max_retries} attempts: {e}",
+                        flush=True,
+                    )
+                    return None
+            except requests.exceptions.RequestException as e:
+                print(f"Error making {method} request to {url}: {e}", flush=True)
+                return None
 
-                response.raise_for_status()
-                return response
-        except requests.exceptions.RequestException as e:
-            print(f"Error making {method} request to {url}: {e}", flush=True)
-            return None
+        return None
 
-    def _process_html_content(
-        self, html_content: str, highlight_cells: bool = False
-    ) -> str:
-        """
-        Process HTML content by replacing relative URLs and optionally highlighting cells.
-
-        Args:
-            html_content: Raw HTML content
-            highlight_cells: Whether to add yellow highlighting to specific cells
-
-        Returns:
-            Processed HTML content
-        """
-        if not html_content:
-            return ""
-
-        # Replace relative paths with absolute URLs
-        for old, new in self._url_replacements.items():
-            html_content = html_content.replace(old, new)
-
-        # Add yellow highlighting to specific cells if requested
-        if highlight_cells:
-            html_content = self._highlight_specific_cells(html_content)
-
-        return html_content
-
-    def _highlight_cell_pair(
-        self, soup: BeautifulSoup, cell_text: str, exact_match: bool = True
-    ) -> None:
-        """
-        Highlight a cell and its corresponding value cell in the same row.
-
-        Args:
-            soup: BeautifulSoup object
-            cell_text: Text to search for in cells
-            exact_match: Whether to use exact match or substring match
-        """
-        # Define the search function based on match type
-        if exact_match:
-            search_func = lambda text: text and text.strip() == cell_text
-        else:
-            search_func = lambda text: text and cell_text in text.strip()
-
-        cells = soup.find_all(["td", "th"], string=search_func)
-
-        for cell in cells:
-            # Highlight the header cell
-            cell["style"] = "background-color: #ffff00;"  # Yellow highlight
-
-            # Find and highlight the corresponding value cell (next cell in the same row)
-            parent_row = cell.find_parent("tr")
-            if parent_row:
-                row_cells = parent_row.find_all(["td", "th"])
-                try:
-                    cell_index = row_cells.index(cell)
-                    if cell_index + 1 < len(row_cells):
-                        value_cell = row_cells[cell_index + 1]
-                        value_cell["style"] = (
-                            "background-color: #ffff00;"  # Yellow highlight
-                        )
-                except ValueError:
-                    pass  # Cell not found in the list
+    # -------------------------------------------------------------------------
+    # Step 1: PDF scraping from highcourtchd.gov.in (unchanged)
+    # -------------------------------------------------------------------------
 
     def submit_view_cl_form(self, date: str) -> str:
-        # Simulate form submission to the actual endpoint
         form_data = {
-            "t_f_date": date,  # The date of the cause list, e.g. "27/12/2024"
-            "urg_ord": "1",  # The list type, e.g. "1" for All Cause Lists
-            "action": "show_causeList",  # Action to show the cause list
+            "t_f_date": date,
+            "urg_ord": "1",
+            "action": "show_causeList",
         }
 
         response = self._make_request(
@@ -173,7 +127,7 @@ class Scraper:
         rows = soup.select("table#tables11 tr")
         pdfs = []
 
-        for row in rows[2:]:  # Skip the header rows
+        for row in rows[2:]:
             cells = row.find_all("td")
             if len(cells) == 3:
                 link = cells[0].find("a", href=True)
@@ -181,422 +135,655 @@ class Scraper:
                 main_sup = cells[2].text.strip()
 
                 if link:
-                    pdf_url = link["onclick"].split("'")[
-                        1
-                    ]  # Extracting the URL from onclick
-                    pdf_url = urljoin(
-                        self.cl_base_url, pdf_url
-                    )  # Make it an absolute URL
+                    pdf_url = link["onclick"].split("'")[1]
+                    pdf_url = urljoin(self.cl_base_url, pdf_url)
                     pdf_name = f"{list_type} | {main_sup}"
                     pdfs.append({"pdf_name": pdf_name, "pdf_url": pdf_url})
 
-        # Separate existing and new PDFs using the tracker
         if search_terms is None:
-            search_terms = []  # Default to empty list for backward compatibility
+            search_terms = []
         existing_pdfs, new_pdfs = pdf_tracker.separate_existing_and_new_pdfs(
             pdfs, search_terms
         )
 
         return existing_pdfs, new_pdfs
 
-    def submit_view_case_status_form(
-        self, case_type: str, case_no: str, case_year: str
-    ) -> Optional[tuple[str, str]]:
+    # -------------------------------------------------------------------------
+    # Step 2: Case details & judge cause list via new phhc API
+    # -------------------------------------------------------------------------
+
+    def _api_get(
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, str]] = None,
+        timeout: tuple = (10, 30),
+    ) -> Optional[Any]:
         """
-        Submit the case status search form and get case ID and session cookie
+        Make a GET request to the PHHC API and return parsed JSON.
 
         Args:
-            case_type: Type of the case (e.g. 'CR')
-            case_no: Case number (e.g. '1234')
-            case_year: Year of the case (e.g. '2015')
+            endpoint: API endpoint path (e.g., '/cis_filing/public/getCase')
+            params: Query parameters
+            timeout: (connect_timeout, read_timeout) tuple
 
         Returns:
-            Tuple of (case_id, session_cookie) if found, None if not found
+            Parsed JSON (dict or list) if successful, None if failed
         """
-        form_data = {
-            "t_case_type": case_type,
-            "t_case_no": case_no,
-            "t_case_year": case_year,
-            "submit": "Search Case",
-        }
-
+        url = f"{self.phhc_api_base_url}{endpoint}"
         response = self._make_request(
-            "POST", self.case_search_url, data=form_data, headers=self.headers
+            "GET", url, headers=self.headers, params=params, timeout=timeout
         )
         if response is None:
             return None
-
-        # Get the PHPSESSID cookie
-        session_cookie = response.cookies.get("PHPSESSID")
-        if not session_cookie:
-            return None
-
-        # Parse response to get case_id
-        soup = BeautifulSoup(response.text, "html.parser")
-        case_link = soup.find("a", href=lambda x: x and "enq_caseno.php?case_id=" in x)
-
-        if not case_link:
-            return None
-
-        # Extract case_id from the link
-        case_id = case_link["href"].split("case_id=")[1]
-
-        return case_id, session_cookie
-
-    def parse_case_listing_details_section(
-        self, html_content: str
-    ) -> Tuple[Dict[str, str], str]:
-        """
-        Parses the 'Case Listing Details' section from the given HTML content.
-        Returns a tuple of (judge_details_dict, extracted_rows_html), where:
-        - judge_details_dict: Dict[str, str] mapping headers to values
-        - extracted_rows_html: str HTML string containing the target row and the next 2 rows
-        """
         try:
-            soup = BeautifulSoup(html_content, "html.parser")
-            target_row = soup.find("th", string="Case Listing Details")
-            if not target_row:
-                return {}, ""
-            target_tr = target_row.find_parent("tr")
-            if not target_tr:
-                return {}, ""
+            return response.json()
+        except ValueError as e:
+            print(f"Error parsing JSON from {url}: {e}", flush=True)
+            return None
 
-            # Add the target row and the next 2 rows to the new table (without extracting)
-            rows_to_add = [target_tr]
-            current_row = target_tr
-            headers_row = None
-            values_row = None
-            for i in range(2):
-                next_row = current_row.find_next_sibling("tr")
-                if next_row:
-                    rows_to_add.append(next_row)
-                    if i == 0:
-                        headers_row = next_row
-                    elif i == 1:
-                        values_row = next_row
-                    current_row = next_row
-                else:
-                    break
+    def _fetch_case_info(
+        self, case_type: str, case_no: str, case_year: str
+    ) -> Optional[Dict]:
+        """Fetch case details from the PHHC API."""
+        data = self._api_get(
+            "/cis_filing/public/getCase",
+            params={"case_no": case_no, "case_type": case_type, "case_year": case_year},
+        )
+        if not data or isinstance(data, list):
+            print(
+                f"No case data found for {case_type}-{case_no}-{case_year}", flush=True
+            )
+            return None
+        return data
 
-            judge_details_dict = {}
-            if headers_row and values_row:
-                headers = [th.get_text(strip=True) for th in headers_row.find_all("th")]
-                values = [td.get_text(strip=True) for td in values_row.find_all("td")]
-                if len(headers) == len(values):
-                    judge_details_dict = dict(zip(headers, values))
+    def _fetch_case_listing_history(
+        self, case_type: str, case_no: str, case_year: str
+    ) -> Optional[List[Dict]]:
+        """Fetch case listing history from the PHHC API."""
+        data = self._api_get(
+            "/case_listing_detail/public/search",
+            params={"case_no": case_no, "case_year": case_year, "case_type": case_type},
+        )
+        if not data:
+            return None
+        # API returns {"data": [...]}
+        if isinstance(data, dict):
+            return data.get("data")
+        return data
 
-            return judge_details_dict
-        except Exception as e:
-            print(f"Error parsing case listing details: {e}", flush=True)
-            return {}, ""
+    def _fetch_active_judges(self) -> Optional[List[Dict]]:
+        """Fetch list of active judges from the PHHC API."""
+        return self._api_get("/cis/judges/active-bench")
 
-    def _highlight_specific_cells(self, html_content: str) -> str:
+    def _normalize_judge_name(self, name: str) -> str:
+        """Strip HON'BLE prefix, court room suffix, and normalize whitespace."""
+        name = re.sub(r"(?i)^HON'BLE\s+", "", name)
+        name = re.sub(r"\s*\(Court Room No\.\s*\d+\)\s*$", "", name)
+        return " ".join(name.split()).strip()
+
+    def _match_judge_code(
+        self, bench_name: str, active_judges: List[Dict]
+    ) -> Optional[int]:
         """
-        Add yellow highlighting to specific cells in the HTML content.
-
-        Highlights:
-        - "Status" cell and its corresponding value cell
-        - "Takenup date" cell and its corresponding value cell
-        - The complete last row found in the "Case Listing Details" section
+        Match a bench name from case data to a judge_code from the active judges list.
 
         Args:
-            html_content (str): The HTML content to process
+            bench_name: e.g. "HON'BLE MR. JUSTICE HARKESH MANUJA"
+            active_judges: List from /cis/judges/active-bench
 
         Returns:
-            str: HTML content with highlighted cells
+            judge_code (int) if found, None otherwise
+        """
+        cleaned = self._normalize_judge_name(bench_name).lower()
+        if not cleaned:
+            return None
+
+        for judge in active_judges:
+            judge_name = judge.get("judge_name", "")
+            if cleaned == judge_name.lower():
+                return judge.get("judge_code")
+
+        # Fallback: substring match
+        for judge in active_judges:
+            judge_name = judge.get("judge_name", "").lower()
+            if cleaned in judge_name or judge_name in cleaned:
+                return judge.get("judge_code")
+
+        print(f"Could not match judge code for bench '{bench_name}'", flush=True)
+        return None
+
+    def _fetch_regular_cause_list(
+        self, judge_code: int, date: str
+    ) -> Optional[List[Dict]]:
+        """
+        Fetch the regular cause list for a judge on a given date.
+
+        Args:
+            judge_code: The judge code from active-bench API
+            date: Date in DD/MM/YYYY format (converted to YYYY-MM-DD for API)
+
+        Returns:
+            List of cause list entries, or None
         """
         try:
-            soup = BeautifulSoup(html_content, "html.parser")
+            dt = datetime.strptime(date, "%d/%m/%Y")
+            api_date = dt.strftime("%Y-%m-%d")
+        except ValueError:
+            print(f"Invalid date format: {date}", flush=True)
+            return None
 
-            # Highlight "Status" and its value cell
-            self._highlight_cell_pair(soup, "Status", exact_match=True)
+        return self._api_get(
+            "/cis_filing/public/getRegularCauseList",
+            params={"bench_judge_id": str(judge_code), "cause_list_date": api_date},
+            timeout=(15, 90),  # Longer timeout — this endpoint can be slow
+        )
 
-            # Highlight "Takenup date" and its value cell
-            self._highlight_cell_pair(soup, "Takenup date", exact_match=False)
+    def _search_cause_list_entries(
+        self, entries: List[Dict], search_terms: List[str]
+    ) -> List[Dict]:
+        """Filter cause list entries that contain any of the search terms."""
+        matching = []
+        for entry in entries:
+            searchable = " ".join(
+                str(entry.get(field, ""))
+                for field in [
+                    "pet_name",
+                    "res_name",
+                    "pet_adv_name",
+                    "res_adv_name",
+                    "case_type",
+                    "case_no",
+                    "case_year",
+                ]
+            ).lower()
+            if any(term.lower() in searchable for term in search_terms):
+                matching.append(entry)
+        return matching
 
-            # Highlight the complete 2nd row after "Case Listing Details" section
-            # Using the same logic as parse_case_listing_details_section
-            target_row = soup.find("th", string="Case Listing Details")
-            if target_row:
-                target_tr = target_row.find_parent("tr")
-                if target_tr:
-                    current_row = target_tr
-                    values_row = None
+    def _format_api_date(self, date_str: Optional[str], fmt: str = "%d-%b-%Y") -> str:
+        """Convert API datetime string like '2026-01-14T00:00:00' to display format."""
+        if not date_str:
+            return ""
+        try:
+            # Handle both date-only strings and datetime strings
+            clean = str(date_str).replace("+05:30", "").split("T")[0]
+            dt = datetime.strptime(clean, "%Y-%m-%d")
+            return dt.strftime(fmt)
+        except (ValueError, AttributeError):
+            return str(date_str)
 
-                    # Get the 2nd row after the target row (same logic as parse_case_listing_details_section)
-                    for i in range(2):
-                        next_row = current_row.find_next_sibling("tr")
-                        if next_row:
-                            if i == 1:  # This is the 2nd row after target row
-                                values_row = next_row
-                            current_row = next_row
-                        else:
-                            break
+    def _fetch_related_cases(self, casedetail_id: int) -> Optional[List[Dict]]:
+        """Fetch related cases/miscellaneous applications."""
+        return self._api_get(
+            "/cis_filing/public/relatedCases",
+            params={"caseDetail_id": str(casedetail_id), "limit": "100"},
+        )
 
-                    # Highlight the 2nd row after target row
-                    if values_row:
-                        cells = values_row.find_all(["td", "th"])
-                        for cell in cells:
-                            cell["style"] = (
-                                "background-color: #ffff00;"  # Yellow highlight
+    def _fetch_judgment_details(
+        self, case_type: str, case_no: str, case_year: str
+    ) -> Optional[List[Dict]]:
+        """Fetch judgment/order details for a case."""
+        return self._api_get(
+            f"/cis_filing/public/judgmentDetails/{case_no}/{case_year}/{case_type}",
+            params={"skip": "0", "limit": "1000"},
+        )
+
+    def _fetch_copy_petition(
+        self, case_type: str, case_no: str, case_year: str
+    ) -> Optional[Dict]:
+        """Fetch copy petition details."""
+        return self._api_get(
+            "/HC-Copying-Applications-Case-Details-Public/",
+            params={"case_no": case_no, "case_year": case_year, "case_type": case_type},
+        )
+
+    def _fetch_impugned_orders(
+        self, case_type: str, case_no: str, case_year: str
+    ) -> Optional[Dict]:
+        """Fetch impugned order details."""
+        return self._api_get(
+            "/cis_filing/public/getImpugnedOrderDetails",
+            params={"case_no": case_no, "case_year": case_year, "case_type": case_type},
+        )
+
+    def _case_status_url(self, case_type: str, case_no: str, case_year) -> str:
+        """Build a link to the case status page on the new PHHC site."""
+        return f"https://new.phhc.gov.in/case-status/case-no?case_no={case_no}&case_type={case_type}&case_year={case_year}"
+
+    def _case_link(self, case_type: str, case_no: str, case_year) -> str:
+        """Build an <a> tag linking to the case status page."""
+        label = f"{case_type}-{case_no}-{case_year}"
+        url = self._case_status_url(case_type, case_no, case_year)
+        return f'<a href="{url}">{label}</a>'
+
+    def _build_case_details_html(
+        self,
+        case_data: Dict,
+        listing_history: Optional[List[Dict]] = None,
+        related_cases: Optional[List[Dict]] = None,
+        judgments: Optional[List[Dict]] = None,
+        copy_petition: Optional[Dict] = None,
+        impugned_orders: Optional[Dict] = None,
+    ) -> str:
+        """
+        Generate HTML for case details matching the new.phhc.gov.in layout.
+
+        Sections:
+        1. Case Details
+        2. Related Cases/Miscellaneous Applications
+        3. Case Listing Details
+        4. Copy Petition Details
+        5. Judgment Details
+        6. Impugned Orders
+        """
+        # Style constants matching the dark navy theme from the site
+        hdr = 'style="background-color: #1a2a4a; color: white; padding: 8px; text-align: center;"'
+        sub_hdr = 'style="background-color: #2a3a5a; color: white; padding: 6px; text-align: center; font-weight: bold;"'
+        lbl = 'style="font-weight: bold; padding: 8px; text-align: left; width: 22%;"'
+        val = 'style="padding: 8px; text-align: left;"'
+        tbl = 'border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 900px; border: 1px solid #ddd;"'
+        hl = 'style="background-color: #ffff00; padding: 8px;"'
+
+        case_type = case_data.get("case_type", "")
+        case_no = case_data.get("case_no", "")
+        case_year = case_data.get("case_year", "")
+
+        # Build status string: "PENDING on 06-Aug-2025 by HON'BLE MR. JUSTICE ..."
+        status_desc = (
+            case_data.get("status", {}).get("status_desc", "")
+            if isinstance(case_data.get("status"), dict)
+            else ""
+        )
+        status_date = self._format_api_date(case_data.get("t_status_date"))
+        bench_name = case_data.get("bench_name", "")
+        status_full = status_desc
+        if status_date:
+            status_full += f" on {status_date}"
+        if bench_name:
+            status_full += f" by {bench_name}"
+
+        reg_date = self._format_api_date(case_data.get("reg_date"))
+        diary_no = case_data.get("case_diary_no", "")
+        category = case_data.get("category", "")
+        cat_desc = case_data.get("cat_desc", "")
+        category_full = f"{category} {cat_desc}".strip() if category else cat_desc
+        pet_name = case_data.get("pet_name", "").strip()
+        res_name = case_data.get("res_name", "").strip()
+        party_detail = (
+            f"(O&M) {pet_name} Vs {res_name}"
+            if pet_name and res_name
+            else f"{pet_name} {res_name}".strip()
+        )
+        pet_adv = case_data.get("pet_adv_name", "") or ""
+        pet_adv_enroll = case_data.get("pet_adv_enrollment_year", "") or ""
+        if pet_adv and pet_adv_enroll:
+            pet_adv = f"{pet_adv} ({pet_adv_enroll})"
+        res_adv = case_data.get("res_adv_name", "") or ""
+        res_adv_enroll = case_data.get("res_adv_enrollment_year", "") or ""
+        if res_adv and res_adv_enroll:
+            res_adv = f"{res_adv} ({res_adv_enroll})"
+        elif not res_adv and res_adv_enroll:
+            res_adv = f"({res_adv_enroll})"
+        district = (
+            case_data.get("district", {}).get("name", "")
+            if isinstance(case_data.get("district"), dict)
+            else ""
+        )
+        list_type = case_data.get("list_type", "")
+        list_type_full = {"R": "REGULAR", "O": "ORDINARY", "U": "URGENT"}.get(
+            list_type, list_type
+        )
+        final_order_date = self._format_api_date(
+            case_data.get("final_order_date_uploaded_on")
+        )
+
+        # Final order link
+        final_order_url = case_data.get("order", "")
+        if final_order_url and not final_order_url.startswith("http"):
+            final_order_url = f"{self.phhc_api_base_url}{final_order_url}"
+
+        # Main case detail as a link
+        main_case_raw = case_data.get("main_case_filling_no", "")
+        main_case_html = ""
+        if main_case_raw:
+            parts = main_case_raw.split(",")
+            if len(parts) == 3:
+                main_case_html = self._case_link(
+                    parts[0].strip(), parts[1].strip(), parts[2].strip()
+                )
+            else:
+                main_case_html = main_case_raw
+
+        next_date = self._format_api_date(case_data.get("listing_or_proposal_date"))
+
+        # --- Final order link at the top ---
+        html = "<center>\n"
+        if final_order_url and final_order_date:
+            html += f'<p><a href="{final_order_url}" style="color: #0066cc; font-weight: bold;">View Judgement Final Order (Dated {final_order_date})</a></p>\n'
+
+        # --- Section 1: Case Details ---
+        html += f"""<table {tbl}>
+  <tr><td colspan="4" {hdr}>Case Details For Case {case_type}-{case_no}-{case_year}</td></tr>
+  <tr><td {lbl}>Diary Number</td><td {val}>{diary_no}</td><td {lbl}>Registration Date</td><td {val}>{reg_date}</td></tr>
+  <tr><td {lbl}>Category</td><td colspan="3" {val}>{category_full}</td></tr>
+  <tr><td {lbl}>Party Detail</td><td colspan="3" {val}>{party_detail}</td></tr>
+  <tr><td {lbl}>Advocate Name</td><td {val}>{pet_adv}</td><td {lbl}>District</td><td {val}>{district}</td></tr>
+  <tr><td {lbl}>Respondent Advocate Name</td><td {val}>{res_adv}</td><td {lbl}>List Type</td><td {val}>{list_type_full}</td></tr>
+  <tr><td {lbl} {hl}>Status</td><td colspan="3" {hl}>{status_full}</td></tr>
+  <tr><td {lbl}>Final Order Uploaded On</td><td colspan="3" {val}>{final_order_date}</td></tr>
+  <tr><td {lbl}>Main Case Detail</td><td {val}>{main_case_html}</td><td colspan="2"></td></tr>
+  <tr><td {lbl} {hl}>Next Date</td><td colspan="3" {hl}>{next_date}</td></tr>
+</table>
+"""
+
+        # --- Section 2: Related Cases/Miscellaneous Applications ---
+        if related_cases:
+            html += f"""<br/>
+<table {tbl}>
+  <tr><td colspan="2" {hdr}>Related Cases/Miscellaneous Applications</td></tr>
+"""
+            for rc in related_cases:
+                doc = rc.get("case_documents", {}) if isinstance(rc, dict) else {}
+                rc_type = doc.get("case_type", "")
+                rc_no = doc.get("case_no", "")
+                rc_year = doc.get("case_year", "")
+                rc_link = self._case_link(rc_type, rc_no, rc_year) if rc_type else ""
+
+                # Check if this related case has order details with a "View Order Dated" link
+                order_details = rc.get("order_details", [])
+                order_link_html = ""
+                if order_details:
+                    for od in order_details:
+                        od_url = od.get("order", "")
+                        if od_url and not od_url.startswith("http"):
+                            od_url = f"{self.phhc_api_base_url}{od_url}"
+                        if od_url:
+                            order_link_html += (
+                                f' &nbsp;<a href="{od_url}">View Order Dated</a>'
                             )
 
-            return str(soup)
-        except Exception as e:
-            print(f"Error highlighting cells: {e}", flush=True)
-            return html_content
+                rc_main = f"IN {case_type}-{case_no}-{case_year}"
+                html += f"  <tr><td {val}>{rc_link}{order_link_html}</td><td {val}>{rc_main}</td></tr>\n"
+            html += "</table>\n"
 
-    def get_case_details(
-        self, case_id: Optional[str] = None, session_cookie: Optional[str] = None
+        # --- Section 3: Case Listing Details ---
+        if listing_history:
+            html += f"""<br/>
+<table {tbl}>
+  <tr><td colspan="3" {hdr}>Case Listing Details</td></tr>
+  <tr><td {sub_hdr}>Cause List Date</td><td {sub_hdr}>List Type-Sr. No.</td><td {sub_hdr}>Bench</td></tr>
+"""
+            for entry in listing_history:
+                cl_date = self._format_api_date(entry.get("cl_date"))
+                cl_type = entry.get("cl_type", "")
+                sr_no = entry.get("sr_no", "")
+                type_sr = f"{cl_type}:{sr_no}"
+                bench = (
+                    entry.get("benchDetails", {}).get("bench_name", "")
+                    if isinstance(entry.get("benchDetails"), dict)
+                    else ""
+                )
+                html += f"  <tr><td {val}>{cl_date}</td><td {val}>{type_sr}</td><td {val}>{bench}</td></tr>\n"
+            html += "</table>\n"
+
+        # --- Section 4: Copy Petition Details ---
+        if copy_petition:
+            items = (
+                copy_petition.get("items", [])
+                if isinstance(copy_petition, dict)
+                else []
+            )
+            if items:
+                html += f"""<br/>
+<table {tbl}>
+  <tr><td colspan="4" {hdr}>Details of Copy Petition Applied in {case_type}-{case_no}-{case_year}</td></tr>
+  <tr><td {sub_hdr}>Petition Type/No</td><td {sub_hdr}>Petition Date</td><td {sub_hdr}>Applied By</td><td {sub_hdr}>Petition Status</td></tr>
+"""
+                for item in items:
+                    pet_code = item.get("pet_code", "")
+                    petrf_no = item.get("petrf_no", "")
+                    pet_type_no = (
+                        f"{pet_code}:{petrf_no}" if pet_code else str(petrf_no)
+                    )
+                    pet_date = item.get("pet_date", "")
+                    pet_type = item.get("pet_type", "")
+                    applname = item.get("applname", "")
+                    applied_by = (
+                        f"<strong>{pet_type}</strong><br/>{applname}"
+                        if pet_type
+                        else applname
+                    )
+                    pet_status = item.get("pet_status", "")
+                    html += f"  <tr><td {val}>{pet_type_no}</td><td {val}>{pet_date}</td><td {val}>{applied_by}</td><td {val}>{pet_status}</td></tr>\n"
+                html += "</table>\n"
+
+        # --- Section 5: Judgment Details ---
+        if judgments:
+            html += f"""<br/>
+<table {tbl}>
+  <tr><td colspan="4" {hdr}>Judgment Details For Case: {case_type}-{case_no}-{case_year}</td></tr>
+  <tr><td {sub_hdr}>Order Date</td><td {sub_hdr}>Order and Case ID</td><td {sub_hdr}>Bench</td><td {sub_hdr}>Judgment Link</td></tr>
+"""
+            for j in judgments:
+                order_date = self._format_api_date(j.get("orderdate"))
+                order_type_code = j.get("order_type", "")
+                order_type = {"I": "Interim Order", "F": "Final Order"}.get(
+                    order_type_code, order_type_code
+                )
+                j_bench = j.get("bench_name", "")
+                order_url = j.get("order", "")
+                if order_url and not order_url.startswith("http"):
+                    order_url = f"{self.phhc_api_base_url}{order_url}"
+                link_html = f'<a href="{order_url}">View Order</a>' if order_url else ""
+                html += f"  <tr><td {val}>{order_date}</td><td {val}>{order_type}</td><td {val}>{j_bench}</td><td {val}>{link_html}</td></tr>\n"
+            html += "</table>\n"
+
+        # --- Section 6: Impugned Orders ---
+        if (
+            impugned_orders
+            and isinstance(impugned_orders, dict)
+            and impugned_orders.get("authority")
+        ):
+            imp_date = self._format_api_date(impugned_orders.get("order_date"))
+            if not imp_date or imp_date == "":
+                imp_date = "Invalid date"
+            imp_type_code = impugned_orders.get("order_type", "")
+            imp_type = {"I": "Interim", "F": "Final"}.get(imp_type_code, imp_type_code)
+            imp_authority = impugned_orders.get("authority", "")
+            imp_district = impugned_orders.get("district", "")
+            html += f"""<br/>
+<table {tbl}>
+  <tr><td colspan="4" {hdr}>Impugned Orders</td></tr>
+  <tr><td {sub_hdr}>Order Date</td><td {sub_hdr}>Order Type</td><td {sub_hdr}>Authority</td><td {sub_hdr}>District</td></tr>
+  <tr><td {val}>{imp_date}</td><td {val}>{imp_type}</td><td {val}>{imp_authority}</td><td {val}>{imp_district}</td></tr>
+</table>
+"""
+
+        html += "</center>"
+        return html
+
+    def _build_judge_cause_list_html(
+        self, matching_entries: List[Dict], judge_name: str, date: str
     ) -> Optional[str]:
         """
-        Get case details by fetching the case details page using case ID and session cookie.
+        Generate HTML table for matching cause list entries.
 
         Args:
-            case_id (Optional[str]): The case ID obtained from case search.
-            session_cookie (Optional[str]): The PHPSESSID cookie value for authentication.
+            matching_entries: Filtered entries from getRegularCauseList
+            judge_name: The judge's name for the header
+            date: The cause list date
 
         Returns:
-            Optional[str]: HTML content containing case details if successful, otherwise None.
+            HTML string if entries found, None otherwise
         """
-        if not case_id or not session_cookie:
+        if not matching_entries:
             return None
 
-        case_details_url = f"{self.case_details_url}?case_id={case_id}"
-        headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
+        html = f"""<center>
+<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 700px;" class="case-listing-details">
+  <tr><td colspan="7" style="text-align:center; font-weight:bold; background-color: #f2f2f2;">
+    CAUSE LIST FOR {judge_name} ON {date}
+  </td></tr>
+  <tr><th>Sr No</th><th>Case</th><th>Petitioner</th><th>Respondent</th><th>Pet. Advocate</th><th>Res. Advocate</th><th>Hearing</th></tr>
+"""
+        for entry in matching_entries:
+            sr_no = entry.get("sr_no", "")
+            case = f"{entry.get('case_type', '')}-{entry.get('case_no', '')}-{entry.get('case_year', '')}"
+            pet = entry.get("pet_name", "") or ""
+            res = entry.get("res_name", "") or ""
+            pet_adv = entry.get("pet_adv_name", "") or ""
+            res_adv = entry.get("res_adv_name", "") or ""
+            hearing = "Yes" if entry.get("hearing_status") == "Y" else "No"
+            html += f"  <tr><td>{sr_no}</td><td>{case}</td><td>{pet}</td><td>{res}</td><td>{pet_adv}</td><td>{res_adv}</td><td>{hearing}</td></tr>\n"
 
-        response = self._make_request("GET", case_details_url, headers=headers)
-        if response is None:
-            return None
+        html += "</table></center>"
+        return html
 
-        html_content = response.text if response.text else None
-        if html_content is None:
-            return None
-
-        # Process HTML content with highlighting
-        return self._process_html_content(html_content, highlight_cells=True)
-
-    def get_judge_code(self, judge_name: str, session_cookie: str) -> Optional[str]:
+    def _build_listing_found_html(
+        self, listing_entry: Dict, judge_name: str, date: str
+    ) -> str:
         """
-        Get judge code by fetching the judge registration page and parsing the dropdown.
+        Build a simple HTML confirmation that the case was found in the regular cause list.
+        Used as fallback when the full cause list API times out.
 
         Args:
-            judge_name (str): The name of the judge (e.g., "MR. JUSTICE HARKESH MANUJA")
-            session_cookie (str): The PHPSESSID cookie value
+            listing_entry: The matching entry from case_listing_detail
+            judge_name: The judge's bench name
+            date: The cause list date
 
         Returns:
-            Optional[str]: The judge code value if found, otherwise None
+            HTML string confirming the listing
         """
-        headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
-
-        response = self._make_request(
-            "GET", self.cl_judge_wise_regular_url, headers=headers
+        cl_type = listing_entry.get("cl_type", "REGULAR")
+        sr_no = listing_entry.get("sr_no", "N/A")
+        bench = (
+            listing_entry.get("benchDetails", {}).get("bench_name", judge_name)
+            if isinstance(listing_entry.get("benchDetails"), dict)
+            else judge_name
         )
-        if response is None:
-            return None
 
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Find the select dropdown using the xpath equivalent
-        # /html/body/table[1]/tbody/tr[5]/td/table/tbody/tr/td[2]/table/tbody/tr[3]/td[2]/select
-        select_element = soup.find("select", {"name": "t_jud_code"})
-
-        if not select_element:
-            print(f"Could not find judge dropdown select element", flush=True)
-            return None
-
-        # Clean the judge name by removing court room pattern
-        cleaned_judge_name = re.sub(r"\s*\(Court Room No\.\s*\d+\)\s*$", "", judge_name)
-
-        # Find the option with matching judge name
-        for option in select_element.find_all("option"):
-            if (
-                cleaned_judge_name.lower()
-                in option.get_text(strip=True).replace("HON'BLE ", "").lower()
-            ):
-                return option.get("value")
-
-        print(f"Could not find judge code for judge '{judge_name}'", flush=True)
-        return None
-
-    def get_judge_registration_html(
-        self, date: str, judge_code: str, session_cookie: str
-    ) -> Optional[str]:
-        """
-        Get judge registration HTML content by submitting the form with date and judge code.
-
-        Args:
-            date (str): The cause list date in format "DD/MM/YYYY" (e.g., "28/07/2025")
-            judge_code (str): The judge code (e.g., "695")
-            session_cookie (str): The PHPSESSID cookie value for authentication.
-
-        Returns:
-            Optional[str]: HTML content containing judge registration details if successful, otherwise None.
-        """
-        headers = {**self.headers, "Cookie": f"PHPSESSID={session_cookie}"}
-
-        # Form data as specified in the curl command
-        form_data = {"cl_date": date, "t_jud_code": judge_code, "submit": "Search Case"}
-
-        response = self._make_request(
-            "POST", self.cl_judge_wise_regular_url, data=form_data, headers=headers
-        )
-        if response is None:
-            return None
-
-        html_content = response.text if response.text else None
-        if html_content is None:
-            return None
-
-        # Process HTML content without highlighting
-        return self._process_html_content(html_content, highlight_cells=False)
-
-    def _parse_judge_registration_and_create_table(
-        self, judge_registration_html: str, search_terms: str
-    ) -> Optional[str]:
-        """
-        Parse judge registration HTML to find rows containing search terms and create a combined table HTML.
-
-        Args:
-            judge_registration_html (str): The HTML content of the judge registration page
-            search_terms (str): The search terms to look for in the HTML
-
-        Returns:
-            Optional[str]: Combined table HTML if search terms are found, None otherwise
-        """
-        soup = BeautifulSoup(judge_registration_html, "html.parser")
-        text_content = soup.get_text().lower()
-
-        if not any(term.lower() in text_content for term in search_terms):
-            return None
-
-        # Find the deepest nested tr elements that contain the search term
-        max_depth = 0
-        deepest_rows = set()
-        header_max_depth = 0
-        header_row = set()
-
-        for tr in soup.find_all("tr"):
-            depth = len(tr.find_parents("table"))
-            if "CAUSE LIST FOR".lower() in tr.get_text().lower():
-                if depth > header_max_depth:
-                    # Found deeper rows, discard previous ones
-                    header_max_depth = depth
-                    header_row.clear()
-                    header_row.add(tr)
-                elif depth == header_max_depth:
-                    # Same depth, add to set (automatically handles duplicates)
-                    header_row.add(tr)
-
-            if any(term.lower() in tr.get_text().lower() for term in search_terms):
-                if depth > max_depth:
-                    # Found deeper rows, discard previous ones
-                    max_depth = depth
-                    deepest_rows.clear()
-                    deepest_rows.add(tr)
-                elif depth == max_depth:
-                    # Same depth, add to set (automatically handles duplicates)
-                    deepest_rows.add(tr)
-                # Rows with depth < max_depth are ignored (memory efficient)
-
-        if deepest_rows:
-            # Convert set to list and combine all unique rows into a single table
-            header_row = list(header_row)
-            unique_rows = list(deepest_rows)
-
-            # Determine the maximum number of columns from data rows
-            max_columns = 0
-            for tr in unique_rows:
-                cells = tr.find_all(["td", "th"])
-                max_columns = max(max_columns, len(cells))
-
-            # Create the combined table HTML
-            combined_table_html = '<center><table border="1" cellpadding="5" cellspacing="0" class="case-listing-details">'
-
-            # Add header rows with colspan to span all columns
-            for tr in header_row:
-                # Create a copy of the row to modify
-                header_copy = BeautifulSoup(str(tr), "html.parser")
-                header_tr = header_copy.find("tr")
-                if header_tr:
-                    # Find the first cell (td or th) and add colspan
-                    first_cell = header_tr.find(["td", "th"])
-                    if first_cell and max_columns > 0:
-                        first_cell["colspan"] = str(max_columns)
-                        # Remove any other cells in the header row
-                        other_cells = first_cell.find_next_siblings(["td", "th"])
-                        for cell in other_cells:
-                            cell.decompose()
-                    combined_table_html += str(header_copy)
-
-            for tr in unique_rows:
-                combined_table_html += str(tr)
-            combined_table_html += "</table></center>"
-
-            for old, new in self._url_replacements.items():
-                combined_table_html = combined_table_html.replace(old, new)
-            return combined_table_html
-
-        return None
+        return f"""<center>
+<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 700px;" class="case-listing-details">
+  <tr><td colspan="4" style="text-align:center; font-weight:bold; background-color: #f2f2f2;">
+    {cl_type} CAUSE LIST — {bench} — {date}
+  </td></tr>
+  <tr><th>Date</th><th>List Type</th><th>Sr No</th><th>Bench</th></tr>
+  <tr style="background-color: #ffff00;">
+    <td>{date}</td><td>{cl_type}</td><td>{sr_no}</td><td>{bench}</td>
+  </tr>
+</table></center>"""
 
     def get_case_details_and_judge_details(
         self,
         case_details: Optional[Dict[str, str]] = None,
-        search_terms: str = None,
+        search_terms: List[str] = None,
         date: str = None,
     ) -> Optional[Tuple[str, str]]:
         """
-        Get case details by first obtaining the case ID and session cookie, then fetching details.
+        Get case details and judge-wise cause list info via the PHHC API.
 
         Args:
-            case_details (Optional[Dict[str, str]]):
-                A dictionary containing:
-                - "type" (str): Type of the case (e.g., 'CR').
-                - "no" (str): Case number (e.g., '1234').
-                - "year" (str): Year of the case (e.g., '2015').
-            search_terms (str): The search terms to search for in the judge registration HTML.
-            date (str): The cause list date in format "DD/MM/YYYY" (e.g., "28/07/2025").
+            case_details: Dict with keys "type", "no", "year"
+            search_terms: List of search terms to look for in the cause list
+            date: Cause list date in DD/MM/YYYY format
+
         Returns:
-            Optional[Tuple[str, str]]:
-                Tuple of (html_content, combined_table_html) if successful,
-                None if any step fails.
+            Tuple of (case_details_html, cause_list_table_html) if successful,
+            None if case_details not provided or case not found.
         """
         if not case_details:
             return None
 
-        result = self.submit_view_case_status_form(
-            case_details["type"], case_details["no"], case_details["year"]
+        case_type = case_details["type"]
+        case_no = case_details["no"]
+        case_year = case_details["year"]
+
+        # Step 1: Fetch case info (required)
+        case_data = self._fetch_case_info(case_type, case_no, case_year)
+        if not case_data:
+            print(
+                f"Failed to fetch case info for {case_type}-{case_no}-{case_year}",
+                flush=True,
+            )
+            return None
+
+        print(
+            f"PROGRESS! Case info fetched for {case_type}-{case_no}-{case_year}",
+            flush=True,
         )
-        if not result:
-            return None
 
-        case_id, session_cookie = result
+        # Step 2: Fetch all supplementary data (all optional, failures don't block)
+        casedetail_id = case_data.get("id")
+        listing_history = self._fetch_case_listing_history(
+            case_type, case_no, case_year
+        )
+        related_cases = (
+            self._fetch_related_cases(casedetail_id) if casedetail_id else None
+        )
+        judgments = self._fetch_judgment_details(case_type, case_no, case_year)
+        copy_petition = self._fetch_copy_petition(case_type, case_no, case_year)
+        impugned_orders = self._fetch_impugned_orders(case_type, case_no, case_year)
 
-        html_content = self.get_case_details(case_id, session_cookie)
-        if not html_content:
-            return None
+        # Step 3: Build case details HTML with all sections
+        case_details_html = self._build_case_details_html(
+            case_data,
+            listing_history=listing_history,
+            related_cases=related_cases,
+            judgments=judgments,
+            copy_petition=copy_petition,
+            impugned_orders=impugned_orders,
+        )
 
-        judge_details_dict = self.parse_case_listing_details_section(html_content)
-        judge_name = judge_details_dict.get("Bench", "").replace("HON'BLE ", "")
+        # Step 4: Check if case is listed for the target date
         combined_table_html = None
+        bench_name = case_data.get("bench_name", "")
+        matching_listing = None
 
-        if not judge_name:
-            return None
+        if listing_history and date:
+            try:
+                target_dt = datetime.strptime(date, "%d/%m/%Y")
+                target_date_str = target_dt.strftime("%Y-%m-%d")
+            except ValueError:
+                target_date_str = None
 
-        judge_code = self.get_judge_code(judge_name, session_cookie)
+            if target_date_str:
+                for entry in listing_history:
+                    cl_date = entry.get("cl_date", "")
+                    if cl_date and cl_date.startswith(target_date_str):
+                        matching_listing = entry
+                        break
 
-        if not judge_code:
-            return None
+            if matching_listing:
+                print(
+                    f"PROGRESS! Case {case_type}-{case_no}-{case_year} found in listing for {date}",
+                    flush=True,
+                )
 
-        judge_registration_html = self.get_judge_registration_html(
-            date, judge_code, session_cookie
-        )
+        # Step 5: Try to get judge-wise regular cause list
+        if bench_name and search_terms and date:
+            active_judges = self._fetch_active_judges()
+            if active_judges:
+                judge_code = self._match_judge_code(bench_name, active_judges)
+                if judge_code:
+                    print(
+                        f"PROGRESS! Matched judge '{bench_name}' to code {judge_code}",
+                        flush=True,
+                    )
+                    cause_list = self._fetch_regular_cause_list(judge_code, date)
+                    if cause_list:
+                        matching = self._search_cause_list_entries(
+                            cause_list, search_terms
+                        )
+                        combined_table_html = self._build_judge_cause_list_html(
+                            matching, bench_name, date
+                        )
+                    elif matching_listing:
+                        print(
+                            f"PROGRESS! Full cause list unavailable, using listing history as fallback",
+                            flush=True,
+                        )
+                        combined_table_html = self._build_listing_found_html(
+                            matching_listing, bench_name, date
+                        )
 
-        if not judge_registration_html:
-            return None
-
-        combined_table_html = self._parse_judge_registration_and_create_table(
-            judge_registration_html, search_terms
-        )
-
-        return html_content, combined_table_html
+        return case_details_html, combined_table_html
