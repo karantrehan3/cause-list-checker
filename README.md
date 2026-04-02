@@ -24,7 +24,7 @@ The application follows a modular architecture with the following components:
 - **FastAPI Server**: RESTful API endpoints for case search operations
 - **Queue Manager**: Asynchronous task queue for processing search requests with retry logic
 - **PDF Searcher**: Searches through downloaded cause list PDFs for specific terms
-- **Web Scraper**: Downloads cause list PDFs and extracts case details from court website
+- **Web Scraper**: Downloads cause list PDFs from highcourtchd.gov.in and fetches case details via the PHHC JSON API
 - **Email Service**: Sends formatted email notifications with search results
 - **Authentication**: Token-based API authentication for security
 
@@ -52,12 +52,11 @@ Create a `.env` file in the root directory with the following variables:
 AUTH_TOKEN=your_secure_auth_token_here
 
 # Court Website URLs
-CASE_SEARCH_URL=https://phhc.gov.in/case-search
-CASE_DETAILS_URL=https://phhc.gov.in/case-details
-CL_BASE_URL=https://phhc.gov.in/cause-list
-CL_FORM_ACTION_URL=https://phhc.gov.in/cause-list/form
-CL_JUDGE_WISE_REGULAR_URL=https://phhc.gov.in/cause-list/judge-wise
-MAIN_BASE_URL=https://phhc.gov.in
+CL_BASE_URL=https://highcourtchd.gov.in/clc.php
+CL_FORM_ACTION_URL=https://highcourtchd.gov.in/view_causeList.php
+CASE_SEARCH_URL=https://new.phhc.gov.in/case-status/case-no
+CL_JUDGE_WISE_REGULAR_URL=https://new.phhc.gov.in/cause/reg-causelist
+PHHC_API_BASE_URL=https://livedb9010.phhc.gov.in
 
 # Email Configuration
 EMAIL_RECIPIENTS=recipient1@example.com,recipient2@example.com
@@ -175,8 +174,8 @@ This ensures comprehensive coverage when searching around weekends.
 
 1. **Request Queuing**: Search requests are added to an asynchronous queue
 2. **Background Processing**: The queue processor handles tasks one at a time
-3. **PDF Download**: The scraper downloads cause list PDFs for the specified date(s) from the Punjab and Haryana High Court website
-4. **Case Details Fetching**: Simultaneously fetches detailed case information from the court database
+3. **PDF Download**: The scraper downloads cause list PDFs for the specified date(s) from the Punjab and Haryana High Court website (highcourtchd.gov.in)
+4. **Case Details Fetching**: Simultaneously fetches detailed case information via the PHHC JSON API (livedb9010.phhc.gov.in) — including case status, listing history, related cases, judgments, copy petitions, and impugned orders
 5. **PDF Search**: Searches through downloaded PDFs for the specified search terms
 6. **Email Notification**: Sends a formatted email with search results to all recipients
 7. **Error Handling**: Comprehensive error handling with automatic retries and email notifications for failures
@@ -218,7 +217,8 @@ cause-list-checker/
 │   ├── managers/
 │   │   ├── pdf_searcher.py    # PDF search functionality
 │   │   ├── queue.py           # Queue management system
-│   │   └── scraper.py         # Web scraping logic
+│   │   ├── pdf_tracker.py      # PDF tracking (new vs existing)
+│   │   └── scraper.py         # Web scraping & PHHC API integration
 │   ├── routes/
 │   │   ├── auth.py            # Authentication middleware
 │   │   └── search/
