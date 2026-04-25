@@ -176,3 +176,7 @@ cython_debug/
 .DS_Store*
 
 cron.sh
+
+# Lambda build artifacts
+lambda_build/
+lambda_deployment.zip
