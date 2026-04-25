@@ -115,8 +115,8 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
         existing_pdfs, new_pdfs = pdf_result
         pdfs = existing_pdfs + new_pdfs  # Combined list for backward compatibility
 
-        case_details_html, term_found_in_regular_cause_list = (
-            case_result if case_result is not None else (None, "")
+        case_details_html, term_found_in_regular_cause_list, case_status_url = (
+            case_result if case_result is not None else (None, "", "")
         )
 
         if not pdfs:
@@ -130,6 +130,7 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
                 [],
                 case_details_html,
                 term_found_in_regular_cause_list,
+                case_status_url,
             )
             print(f"ALERT! No Cause Lists found for {queued_search.date}", flush=True)
             return True
@@ -160,6 +161,7 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
             results,
             case_details_html,
             term_found_in_regular_cause_list,
+            case_status_url,
         )
 
         print(
@@ -190,6 +192,7 @@ def send_email(
     results: List[Dict[str, Any]],
     case_details_html: Optional[str] = None,
     term_found_in_regular_cause_list: Optional[str] = None,
+    case_status_url: Optional[str] = None,
 ) -> None:
     # Combine existing and new PDFs for backward compatibility
     all_pdfs = existing_pdfs + new_pdfs
@@ -207,6 +210,7 @@ def send_email(
             "cl_base_url": settings.CL_BASE_URL,
             "case_search_url": settings.CASE_SEARCH_URL,
             "cl_judge_wise_regular_url": settings.CL_JUDGE_WISE_REGULAR_URL,
+            "case_status_url": case_status_url or settings.CASE_SEARCH_URL,
         },
     }
     try:

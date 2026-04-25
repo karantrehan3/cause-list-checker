@@ -312,11 +312,18 @@ class Scraper:
         except (ValueError, AttributeError):
             return str(date_str)
 
-    def _fetch_related_cases(self, casedetail_id: int) -> Optional[List[Dict]]:
+    def _fetch_related_cases(
+        self, case_type: str, case_no: str, case_year: str
+    ) -> Optional[List[Dict]]:
         """Fetch related cases/miscellaneous applications."""
         return self._api_get(
             "/cis_filing/public/relatedCases",
-            params={"caseDetail_id": str(casedetail_id), "limit": "100"},
+            params={
+                "case_type": case_type,
+                "case_no": case_no,
+                "case_year": case_year,
+                "limit": "100",
+            },
         )
 
     def _fetch_judgment_details(
@@ -457,9 +464,7 @@ class Scraper:
         next_date = self._format_api_date(case_data.get("listing_or_proposal_date"))
 
         # --- Links at the top ---
-        case_status_url = self._case_status_url(case_type, case_no, case_year)
         html = "<center>\n"
-        html += f'<p><a href="{case_status_url}" style="color: #0066cc; font-weight: bold;">View Live Case Status on PHHC</a></p>\n'
         if final_order_url and final_order_date:
             html += f'<p><a href="{final_order_url}" style="color: #0066cc; font-weight: bold;">View Judgement Final Order (Dated {final_order_date})</a></p>\n'
 
@@ -491,7 +496,6 @@ class Scraper:
                 rc_year = doc.get("case_year", "")
                 rc_link = self._case_link(rc_type, rc_no, rc_year) if rc_type else ""
 
-                # Check if this related case has order details with a "View Order Dated" link
                 order_details = rc.get("order_details", [])
                 order_link_html = ""
                 if order_details:
@@ -499,9 +503,11 @@ class Scraper:
                         od_url = od.get("order", "")
                         if od_url and not od_url.startswith("http"):
                             od_url = f"{self.phhc_api_base_url}{od_url}"
+                        od_date = self._format_api_date(od.get("orderdate"))
                         if od_url:
+                            date_label = f" Dated {od_date}" if od_date else ""
                             order_link_html += (
-                                f' &nbsp;<a href="{od_url}">View Order Dated</a>'
+                                f' &nbsp;<a href="{od_url}">View Order{date_label}</a>'
                             )
 
                 rc_main = f"IN {case_type}-{case_no}-{case_year}"
@@ -515,7 +521,7 @@ class Scraper:
   <tr><td colspan="3" {hdr}>Case Listing Details</td></tr>
   <tr><td {sub_hdr}>Cause List Date</td><td {sub_hdr}>List Type-Sr. No.</td><td {sub_hdr}>Bench</td></tr>
 """
-            for entry in listing_history:
+            for i, entry in enumerate(listing_history):
                 cl_date = self._format_api_date(entry.get("cl_date"))
                 cl_type = entry.get("cl_type", "")
                 sr_no = entry.get("sr_no", "")
@@ -525,7 +531,8 @@ class Scraper:
                     if isinstance(entry.get("benchDetails"), dict)
                     else ""
                 )
-                html += f"  <tr><td {val}>{cl_date}</td><td {val}>{type_sr}</td><td {val}>{bench}</td></tr>\n"
+                row_style = hl if i == 0 else val
+                html += f"  <tr><td {row_style}>{cl_date}</td><td {row_style}>{type_sr}</td><td {row_style}>{bench}</td></tr>\n"
             html += "</table>\n"
 
         # --- Section 4: Copy Petition Details ---
@@ -679,7 +686,7 @@ class Scraper:
         case_details: Optional[Dict[str, str]] = None,
         search_terms: List[str] = None,
         date: str = None,
-    ) -> Optional[Tuple[str, str]]:
+    ) -> Optional[Tuple[str, str, str]]:
         """
         Get case details and judge-wise cause list info via the PHHC API.
 
@@ -689,8 +696,8 @@ class Scraper:
             date: Cause list date in DD/MM/YYYY format
 
         Returns:
-            Tuple of (case_details_html, cause_list_table_html) if successful,
-            None if case_details not provided or case not found.
+            Tuple of (case_details_html, cause_list_table_html, case_status_url)
+            if successful, None if case_details not provided or case not found.
         """
         if not case_details:
             return None
@@ -714,13 +721,10 @@ class Scraper:
         )
 
         # Step 2: Fetch all supplementary data (all optional, failures don't block)
-        casedetail_id = case_data.get("id")
         listing_history = self._fetch_case_listing_history(
             case_type, case_no, case_year
         )
-        related_cases = (
-            self._fetch_related_cases(casedetail_id) if casedetail_id else None
-        )
+        related_cases = self._fetch_related_cases(case_type, case_no, case_year)
         judgments = self._fetch_judgment_details(case_type, case_no, case_year)
         copy_petition = self._fetch_copy_petition(case_type, case_no, case_year)
         impugned_orders = self._fetch_impugned_orders(case_type, case_no, case_year)
@@ -787,4 +791,5 @@ class Scraper:
                             matching_listing, bench_name, date
                         )
 
-        return case_details_html, combined_table_html
+        case_status_url = self._case_status_url(case_type, case_no, case_year)
+        return case_details_html, combined_table_html, case_status_url
