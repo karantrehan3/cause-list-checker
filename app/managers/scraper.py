@@ -389,7 +389,7 @@ class Scraper:
         lbl = 'style="font-weight: bold; padding: 8px; text-align: left; width: 22%;"'
         val = 'style="padding: 8px; text-align: left;"'
         tbl = 'border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 900px; border: 1px solid #ddd;"'
-        hl = 'style="background-color: #ffff00; padding: 8px;"'
+        hl = 'style="background-color: #ffff00; padding: 8px; text-align: left;"'
 
         case_type = case_data.get("case_type", "")
         case_no = case_data.get("case_no", "")
