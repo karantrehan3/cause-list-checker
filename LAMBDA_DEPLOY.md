@@ -65,11 +65,10 @@ Configuration > Environment variables > Edit:
 
 Go to **Amazon EventBridge** > **Scheduler** > **Schedules** > **Create schedule**.
 
-#### Schedule 1 — Search Term 1
+For each search configuration, create a schedule with:
 
-- Name: `cause-list-search-config-1`
 - Schedule type: **Recurring schedule**
-- Cron: `cron(30 4,7,8,9,10,11,12,13,14,15,16,17 * * ? *)`
+- Cron: `cron(<minute> <UTC hours> * * ? *)`
 - Timezone: **UTC**
 - Flexible time window: **Off**
 - Target: **AWS Lambda — Invoke** > `cause-list-checker`
@@ -77,27 +76,14 @@ Go to **Amazon EventBridge** > **Scheduler** > **Schedules** > **Create schedule
   ```json
   {
     "detail": {
-      "search_terms": ["Search Term 1", "XX-0000-0000"],
-      "case_details": {"type": "CR", "no": "0000", "year": "2010"}
+      "search_terms": ["<search term 1>", "<search term 2>"],
+      "recipient_emails": ["<email>"],
+      "case_details": {"type": "<case_type>", "no": "<case_no>", "year": "<case_year>"}
     }
   }
   ```
 
-#### Schedule 2 — Search Term 2
-
-- Name: `cause-list-search-config-2`
-- Cron: `cron(45 4,7,8,9,10,11,12,13,14,15,16,17 * * ? *)`
-- Timezone: **UTC**
-- Target: **AWS Lambda — Invoke** > `cause-list-checker`
-- Payload:
-  ```json
-  {
-    "detail": {
-      "search_terms": ["Search Term 2"],
-      "recipient_emails": ["redacted@example.com"]
-    }
-  }
-  ```
+`recipient_emails` and `case_details` are optional. If `recipient_emails` is omitted, the `EMAIL_RECIPIENTS` env var is used.
 
 ### 5. Cron Schedule Reference
 
