@@ -12,9 +12,9 @@ Environment variables (set in Lambda configuration):
 
 EventBridge rule input (JSON) — passed as event["detail"]:
     {
-        "search_terms": ["Search Term 1", "XX-0000-0000"],
+        "search_terms": ["<search term 1>", "<search term 2>"],
         "recipient_emails": ["user@example.com"],          // optional, falls back to EMAIL_RECIPIENTS
-        "case_details": {"type": "CR", "no": "0000", "year": "2010"}  // optional
+        "case_details": {"type": "<type>", "no": "<no>", "year": "<year>"}  // optional
     }
 """
 
