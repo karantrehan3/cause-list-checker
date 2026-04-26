@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set, Tuple
 
 IST = timezone(timedelta(hours=5, minutes=30))
-SSM_PARAM_NAME = "/cause-list-checker/pdf-tracker"
+SSM_PARAM_NAME = os.environ.get("SSM_PDF_TRACKER_PARAM", "")
 
 
 class PDFTracker:

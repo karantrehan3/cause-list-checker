@@ -17,7 +17,8 @@ class Emailer:
         self.smtp_server = settings.SMTP_SERVER
         self.smtp_port = settings.SMTP_PORT
         self.env = Environment(
-            loader=FileSystemLoader("app/services/emailer/templates")
+            loader=FileSystemLoader("app/services/emailer/templates"),
+            autoescape=True,
         )
 
     def send_email(

@@ -12,7 +12,10 @@ class ErrorHandler:
     def handle_exception(self, exception: Exception, context: dict) -> Tuple[str, str]:
         error_message = str(exception)
         stack_trace = traceback.format_exc()
-        context.update({"error_message": error_message, "stack_trace": stack_trace})
+
+        print(f"Stack trace:\n{stack_trace}", flush=True)
+
+        context.update({"error_message": error_message})
 
         try:
             self.emailer.send_email(

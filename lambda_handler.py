@@ -19,6 +19,7 @@ EventBridge rule input (JSON) — passed as event["detail"]:
 """
 
 import json
+import re
 import traceback
 from datetime import datetime, timedelta, timezone
 
@@ -30,6 +31,18 @@ from app.utils.error_handler import ErrorHandler
 from app.utils.helpers import get_weekend_dates
 
 IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _redact_email(email: str) -> str:
+    """Redact email: 'john.doe@gmail.com' -> 'jo*****e@gm***com'"""
+    parts = email.split("@")
+    if len(parts) != 2:
+        return "***"
+    local = parts[0]
+    domain = parts[1]
+    local_redacted = local[:2] + "*" * max(len(local) - 3, 1) + local[-1] if len(local) > 3 else local[0] + "***"
+    domain_redacted = domain[:2] + "***" + domain[-3:] if len(domain) > 5 else domain[0] + "***"
+    return f"{local_redacted}@{domain_redacted}"
 
 
 def _build_context(
@@ -109,7 +122,7 @@ def handler(event, context):
 
     print(f"Search terms: {search_terms}")
     print(f"Case details: {case_details}")
-    print(f"Recipients: {recipients}")
+    print(f"Recipients: {[_redact_email(e) for e in recipients]}")
     print(f"Dates to process: {dates_to_process}")
 
     scraper = Scraper()
