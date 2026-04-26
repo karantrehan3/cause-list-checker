@@ -107,8 +107,11 @@ def process_date(scraper, searcher, emailer, error_handler, search_terms, date, 
 
 
 def handler(event, context):
-    """AWS Lambda entry point. Config comes from EventBridge event detail."""
-    detail = event.get("detail", event)
+    """AWS Lambda entry point. Accepts EventBridge events and Function URL requests."""
+    if "body" in event:
+        detail = json.loads(event["body"])
+    else:
+        detail = event.get("detail", event)
 
     search_terms = detail.get("search_terms", [])
     if not search_terms:
@@ -117,8 +120,8 @@ def handler(event, context):
     case_details = detail.get("case_details")
     recipients = detail.get("recipient_emails") or settings.EMAIL_RECIPIENTS.split(",")
 
-    tomorrow_ist = (datetime.now(IST) + timedelta(days=1)).strftime("%d/%m/%Y")
-    dates_to_process = get_weekend_dates(tomorrow_ist)
+    target_date = detail.get("date") or (datetime.now(IST) + timedelta(days=1)).strftime("%d/%m/%Y")
+    dates_to_process = get_weekend_dates(target_date)
 
     print(f"Search terms: {search_terms}")
     print(f"Case details: {case_details}")
