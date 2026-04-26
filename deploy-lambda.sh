@@ -39,21 +39,6 @@ cd ..
 ZIP_SIZE=$(du -h "$ZIP_FILE" | cut -f1)
 echo "Deployment zip created: $ZIP_FILE ($ZIP_SIZE)"
 
-# Check if AWS CLI is available
-if ! command -v aws &> /dev/null; then
-  echo ""
-  echo "AWS CLI not found. Upload manually:"
-  echo "  Lambda > cause-list-checker > Code > Upload from > .zip file"
-  exit 0
-fi
-
-# Deploy to Lambda
-echo "Deploying to Lambda function: $FUNCTION_NAME..."
-aws lambda update-function-code \
-  --function-name "$FUNCTION_NAME" \
-  --zip-file "fileb://$ZIP_FILE" \
-  --region "$REGION" \
-  --no-cli-pager
-
 echo ""
-echo "=== Deployment complete ==="
+echo "=== Build complete ==="
+echo "Upload manually: Lambda > cause-list-checker > Code > Upload from > .zip file"
