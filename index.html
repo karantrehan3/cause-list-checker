@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cause List Checker — search court cause lists, get emailed when your case is listed</title>
+    <meta
+      name="description"
+      content="A FastAPI service that searches Punjab &amp; Haryana High Court cause-list PDFs for your cases and emails you the matches — with hearing dates, case details, and weekend-aware scheduling."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E"
+    />
+    <meta property="og:title" content="Cause List Checker" />
+    <meta
+      property="og:description"
+      content="Searches court cause-list PDFs and emails you when your case is listed for a hearing."
+    />
+    <meta property="og:image" content="assets/thumbnail.png" />
+    <meta property="og:type" content="website" />
+    <style>
+      :root {
+        --bg: #0a0f1c;
+        --surface: #131a2e;
+        --surface-2: #1b2440;
+        --line: #283255;
+        --text: #f3f5fb;
+        --muted: #97a0bd;
+        --accent: #d8b34a;
+        --accent-2: #f0d27a;
+        --radius: 18px;
+        --space: clamp(4rem, 3rem + 5vw, 8rem);
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: inherit;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+      .sans {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      }
+
+      /* Hero */
+      .hero {
+        position: relative;
+        text-align: center;
+        padding: clamp(4rem, 3rem + 6vw, 7rem) 0 var(--space);
+        overflow: hidden;
+      }
+      .hero::before {
+        content: '';
+        position: absolute;
+        inset: -40% 0 auto 0;
+        height: 540px;
+        background: radial-gradient(60% 60% at 50% 0%, rgba(216, 179, 74, 0.16), transparent 70%);
+        pointer-events: none;
+      }
+      .badge {
+        width: 132px;
+        height: 132px;
+        filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
+      }
+      h1 {
+        font-size: clamp(2.6rem, 1.4rem + 5vw, 4.6rem);
+        letter-spacing: -0.02em;
+        margin: 1.4rem 0 0.4rem;
+        font-weight: 700;
+        line-height: 1.05;
+      }
+      .tagline {
+        color: var(--muted);
+        font-size: clamp(1.05rem, 0.95rem + 0.6vw, 1.4rem);
+        max-width: 44ch;
+        margin: 0 auto;
+      }
+      .cta {
+        display: flex;
+        gap: 0.8rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 2.2rem;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.85rem 1.6rem;
+        border-radius: 999px;
+        font-weight: 600;
+        text-decoration: none;
+        transition:
+          transform 0.2s var(--ease),
+          background 0.2s var(--ease),
+          border-color 0.2s var(--ease);
+        border: 1px solid transparent;
+      }
+      .btn:hover {
+        transform: translateY(-2px);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #1a1405;
+      }
+      .btn-primary:hover {
+        background: var(--accent-2);
+      }
+      .btn-ghost {
+        border-color: var(--line);
+        color: var(--text);
+        background: var(--surface);
+      }
+      .btn-ghost:hover {
+        border-color: #3c4a7a;
+      }
+      .platforms {
+        margin-top: 1.4rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .platforms strong {
+        color: var(--accent-2);
+      }
+
+      /* Sections */
+      section {
+        padding: var(--space) 0;
+        border-top: 1px solid var(--line);
+      }
+      h2 {
+        font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.4rem);
+        letter-spacing: -0.01em;
+        margin: 0 0 2.2rem;
+      }
+      .grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        transition:
+          transform 0.25s var(--ease),
+          border-color 0.25s var(--ease);
+      }
+      .card:hover {
+        transform: translateY(-4px);
+        border-color: var(--accent);
+      }
+      .card h3 {
+        margin: 0 0 0.5rem;
+        font-size: 1.15rem;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.96rem;
+      }
+      .ico {
+        font-size: 1.5rem;
+        margin-bottom: 0.7rem;
+        display: block;
+      }
+
+      /* Steps */
+      .steps {
+        display: grid;
+        gap: 1rem;
+        counter-reset: step;
+      }
+      .step {
+        display: flex;
+        gap: 1.1rem;
+        align-items: flex-start;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--accent);
+        border-radius: var(--radius);
+        padding: 1.2rem 1.5rem;
+        transition: border-color 0.25s var(--ease);
+      }
+      .step:hover {
+        border-left-color: var(--accent-2);
+      }
+      .step::before {
+        counter-increment: step;
+        content: counter(step);
+        flex: 0 0 auto;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: 50%;
+        background: rgba(216, 179, 74, 0.14);
+        color: var(--accent-2);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      }
+      .step p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .step strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      code {
+        font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0.1rem 0.4rem;
+        font-size: 0.85em;
+      }
+
+      footer {
+        text-align: center;
+        color: var(--muted);
+        padding: 3rem 0;
+        border-top: 1px solid var(--line);
+        font-size: 0.9rem;
+      }
+      footer a {
+        color: var(--text);
+        text-decoration: none;
+        border-bottom: 1px solid var(--line);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="wrap">
+        <svg class="badge" viewBox="0 0 132 132" role="img" aria-label="Cause List Checker icon">
+          <defs>
+            <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#1b2440" />
+              <stop offset="1" stop-color="#0d1426" />
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" width="128" height="128" rx="30" fill="url(#bg)" stroke="#283255" />
+          <rect x="38" y="30" width="44" height="58" rx="5" fill="none" stroke="#d8b34a" stroke-width="3" />
+          <line x1="47" y1="44" x2="73" y2="44" stroke="#f0d27a" stroke-width="3" stroke-linecap="round" />
+          <line x1="47" y1="54" x2="73" y2="54" stroke="#97a0bd" stroke-width="3" stroke-linecap="round" />
+          <line x1="47" y1="64" x2="65" y2="64" stroke="#97a0bd" stroke-width="3" stroke-linecap="round" />
+          <circle cx="82" cy="80" r="16" fill="#0d1426" stroke="#f0d27a" stroke-width="4" />
+          <line x1="93" y1="91" x2="106" y2="104" stroke="#f0d27a" stroke-width="5" stroke-linecap="round" />
+        </svg>
+        <h1>Cause List Checker</h1>
+        <p class="tagline sans">
+          Searches Punjab &amp; Haryana High Court cause-list PDFs for your cases and emails you the moment one
+          is listed for a hearing.
+        </p>
+        <div class="cta sans">
+          <a class="btn btn-primary" href="https://github.com/karantrehan3/cause-list-checker">View on GitHub</a>
+          <a class="btn btn-ghost" href="#how">How it works</a>
+        </div>
+        <p class="platforms sans">
+          <strong>FastAPI</strong> · Dockerised · Gmail notifications · queued &amp; weekend-aware
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <section id="features">
+        <div class="wrap">
+          <h2>What it does</h2>
+          <div class="grid sans">
+            <div class="card">
+              <span class="ico">🔎</span>
+              <h3>Automated case search</h3>
+              <p>
+                Downloads the day's cause-list PDFs from highcourtchd.gov.in and scans every page for your case
+                numbers and keywords.
+              </p>
+            </div>
+            <div class="card">
+              <span class="ico">📧</span>
+              <h3>Emailed when listed</h3>
+              <p>
+                Sends a formatted alert to every recipient with the matching pages, context, and the hearing
+                date — straight to your inbox via Gmail.
+              </p>
+            </div>
+            <div class="card">
+              <span class="ico">📅</span>
+              <h3>Weekend-aware dates</h3>
+              <p>
+                A Friday search rolls forward through Saturday, Sunday and Monday automatically, so nothing slips
+                past the weekend.
+              </p>
+            </div>
+            <div class="card">
+              <span class="ico">⚙️</span>
+              <h3>Queued &amp; resilient</h3>
+              <p>
+                An async task queue processes requests sequentially with retry &amp; backoff and built-in rate
+                limiting, so the court site is never hammered.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="wrap">
+          <h2>How it works</h2>
+          <div class="steps sans">
+            <div class="step">
+              <p>
+                <strong>Queue the request.</strong> Hit <code>POST /search/cause-list</code> with your search
+                terms, a date, and the recipient emails. It lands on an asynchronous queue.
+              </p>
+            </div>
+            <div class="step">
+              <p>
+                <strong>Fetch the lists.</strong> The scraper pulls the cause-list PDFs for each date and, in
+                parallel, fetches detailed case status from the PHHC JSON API.
+              </p>
+            </div>
+            <div class="step">
+              <p>
+                <strong>Search the PDFs.</strong> Every downloaded PDF is scanned for your terms, capturing the
+                page number and surrounding context for each hit.
+              </p>
+            </div>
+            <div class="step">
+              <p>
+                <strong>Email the results.</strong> A formatted notification — matches, dates, case details — is
+                sent to all recipients, with automatic retries on failure.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="sans">
+      <div class="wrap">
+        <p>
+          Built with FastAPI &amp; Python ·
+          <a href="https://github.com/karantrehan3/cause-list-checker">GitHub</a> ·
+          <a href="https://github.com/karantrehan3/cause-list-checker/blob/master/LICENSE">MIT</a>
+        </p>
+        <p>© 2022 Karan Trehan</p>
+      </div>
+    </footer>
+  </body>
+</html>

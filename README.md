@@ -1,7 +1,5 @@
 # [Cause List Checker](https://karantrehan3.github.io/cause-list-checker/)
 
-{% include header.html %}
-
 ![Cause List Checker](./assets/thumbnail.png)
 
 An internal tool built for searching case details on Punjab and Haryana High Court and checking if you have a hearing date on a specified date. Results are automatically emailed to recipient emails.
