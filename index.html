@@ -698,6 +698,15 @@ curl http://localhost:3080/health</code></pre>
 
     <script>
     (function () {
+      /* ── Configurable timing (ms) ── */
+      var WF_INITIAL_DELAY       = 400;
+      var WF_STEP_ACTIVE         = 900;
+      var WF_STEP_GAP            = 200;
+      var WF_POST_COMPLETE_PAUSE = 2200;
+      var WF_RESTART_DELAY       = 600;
+      var WF_REDUCED_RESTART     = 3500;
+      var COPY_FEEDBACK          = 1500;
+
       /* ── Portfolio nav ── */
       if (new URLSearchParams(location.search).get('ref') === 'portfolio') {
         var nav = document.getElementById('navHome');
@@ -764,7 +773,7 @@ curl http://localhost:3080/health</code></pre>
             s.querySelector('.wf-status').textContent = labels[i];
           });
           connectors.forEach(function (c) { c.classList.add('lit'); });
-          setTimeout(runWorkflow, 3500);
+          setTimeout(runWorkflow, WF_REDUCED_RESTART);
           return;
         }
 
@@ -773,8 +782,8 @@ curl http://localhost:3080/health</code></pre>
           if (i >= steps.length) {
             setTimeout(function () {
               resetWorkflow();
-              setTimeout(runWorkflow, 600);
-            }, 2200);
+              setTimeout(runWorkflow, WF_RESTART_DELAY);
+            }, WF_POST_COMPLETE_PAUSE);
             return;
           }
 
@@ -786,11 +795,11 @@ curl http://localhost:3080/health</code></pre>
             steps[i].classList.add('done');
             if (connectors[i]) connectors[i].classList.add('lit');
             i++;
-            setTimeout(activateStep, 200);
-          }, 900);
+            setTimeout(activateStep, WF_STEP_GAP);
+          }, WF_STEP_ACTIVE);
         }
 
-        setTimeout(activateStep, 400);
+        setTimeout(activateStep, WF_INITIAL_DELAY);
       }
 
       runWorkflow();
@@ -823,7 +832,7 @@ curl http://localhost:3080/health</code></pre>
           navigator.clipboard.writeText(text).then(function () {
             btn.textContent = 'Copied!';
             btn.classList.add('copied');
-            setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+            setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, COPY_FEEDBACK);
           });
         });
       });
