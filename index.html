@@ -20,500 +20,833 @@
     <meta property="og:image" content="assets/thumbnail.png" />
     <meta property="og:type" content="website" />
     <style>
+      /* ── Tokens (dark default) ── */
       :root {
         --bg: #0a0f1c;
         --surface: #131a2e;
-        --surface-2: #1b2440;
-        --line: #283255;
+        --surface-raised: #1b2440;
+        --border: #283255;
+        --border-hover: #3c4a7a;
         --text: #f3f5fb;
-        --muted: #97a0bd;
-        --accent: #d8b34a;
-        --accent-2: #f0d27a;
-        --radius: 18px;
-        --space: clamp(4rem, 3rem + 5vw, 8rem);
-        --ease: cubic-bezier(0.16, 1, 0.3, 1);
-      }
-      * {
-        box-sizing: border-box;
-      }
-      html {
-        scroll-behavior: smooth;
-      }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-        font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
-        line-height: 1.65;
-        -webkit-font-smoothing: antialiased;
-      }
-      a {
-        color: inherit;
-      }
-      .wrap {
-        max-width: 1080px;
-        margin: 0 auto;
-        padding: 0 1.5rem;
-      }
-      .sans {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        --text-secondary: #97a0bd;
+        --accent: #d4a853;
+        --accent-hover: #f0d27a;
+        --accent-subtle: rgba(212,168,83,.1);
+        --accent-glow: rgba(212,168,83,.16);
+        --post-bg: rgba(212,168,83,.12);
+        --post-text: #d4a853;
+        --get-bg: rgba(63,185,80,.1);
+        --get-text: #3fb950;
+        --terminal-bg: #080c18;
+        --terminal-dot-red: #ff5f57;
+        --terminal-dot-yellow: #febc2e;
+        --terminal-dot-green: #28c840;
+        --code-flag: #79c0ff;
+        --code-string: #f0d27a;
+        --code-comment: #546178;
+        --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+        --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+        --mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', ui-monospace, 'Fira Code', monospace;
+        --radius: 14px;
+        --radius-sm: 8px;
+        --space: clamp(4rem, 3rem + 5vw, 7rem);
+        --ease: cubic-bezier(.16, 1, .3, 1);
       }
 
-      /* Hero */
-      .hero {
-        position: relative;
-        text-align: center;
-        padding: clamp(4rem, 3rem + 6vw, 7rem) 0 var(--space);
-        overflow: hidden;
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f8f6f1;
+          --surface: #ffffff;
+          --surface-raised: #f0ece4;
+          --border: #d5cfc3;
+          --border-hover: #b8b0a0;
+          --text: #1a1710;
+          --text-secondary: #6b6353;
+          --accent: #9a7420;
+          --accent-hover: #7d5c14;
+          --accent-subtle: rgba(154,116,32,.07);
+          --accent-glow: rgba(154,116,32,.1);
+          --post-bg: rgba(154,116,32,.1);
+          --post-text: #7d5c14;
+          --get-bg: rgba(26,127,55,.08);
+          --get-text: #1a7f37;
+          --terminal-bg: #1a1710;
+          --code-flag: #0550ae;
+          --code-string: #7d5c14;
+          --code-comment: #6e7781;
+        }
       }
+      :root[data-theme="dark"] {
+        --bg: #0a0f1c; --surface: #131a2e; --surface-raised: #1b2440;
+        --border: #283255; --border-hover: #3c4a7a; --text: #f3f5fb;
+        --text-secondary: #97a0bd; --accent: #d4a853; --accent-hover: #f0d27a;
+        --accent-subtle: rgba(212,168,83,.1); --accent-glow: rgba(212,168,83,.16);
+        --post-bg: rgba(212,168,83,.12); --post-text: #d4a853;
+        --get-bg: rgba(63,185,80,.1); --get-text: #3fb950;
+        --terminal-bg: #080c18; --code-flag: #79c0ff; --code-string: #f0d27a;
+        --code-comment: #546178;
+      }
+      :root[data-theme="light"] {
+        --bg: #f8f6f1; --surface: #ffffff; --surface-raised: #f0ece4;
+        --border: #d5cfc3; --border-hover: #b8b0a0; --text: #1a1710;
+        --text-secondary: #6b6353; --accent: #9a7420; --accent-hover: #7d5c14;
+        --accent-subtle: rgba(154,116,32,.07); --accent-glow: rgba(154,116,32,.1);
+        --post-bg: rgba(154,116,32,.1); --post-text: #7d5c14;
+        --get-bg: rgba(26,127,55,.08); --get-text: #1a7f37;
+        --terminal-bg: #1a1710; --code-flag: #0550ae; --code-string: #7d5c14;
+        --code-comment: #6e7781;
+      }
+
+      /* ── Reset & base ── */
+      *, *::before, *::after { box-sizing: border-box; }
+      html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+      a { color: inherit; }
+      img { max-width: 100%; }
+
+      .wrap { max-width: 1160px; margin: 0 auto; padding: 0 1.5rem; }
+
+      /* ── Portfolio nav ── */
+      .nav-home { position: fixed; top: 1rem; left: 1rem; z-index: 50; display: flex; gap: .5rem; }
+      .nav-btn {
+        display: inline-flex; align-items: center; gap: .35rem; padding: .5rem .9rem;
+        border-radius: 999px; font-size: .85rem; font-weight: 600; font-family: var(--sans);
+        text-decoration: none; color: var(--text); background: color-mix(in srgb, var(--surface) 82%, transparent);
+        border: 1px solid var(--border); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        transition: transform .2s var(--ease), border-color .2s var(--ease);
+      }
+      .nav-btn:hover { transform: translateY(-2px); border-color: var(--accent); }
+
+      /* ── Theme toggle ── */
+      .theme-toggle {
+        position: fixed; top: 1rem; right: 1rem; z-index: 50;
+        width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--surface) 82%, transparent);
+        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        cursor: pointer; display: grid; place-items: center; font-size: 1.1rem;
+        transition: transform .2s var(--ease), border-color .2s var(--ease);
+        padding: 0; line-height: 1;
+      }
+      .theme-toggle:hover { transform: translateY(-2px); border-color: var(--accent); }
+      .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .theme-toggle .icon-sun, .theme-toggle .icon-moon { display: none; }
+
+      /* ── Hero ── */
+      .hero { position: relative; padding: clamp(3.5rem, 2rem + 5vw, 6rem) 0 var(--space); overflow: hidden; }
       .hero::before {
-        content: '';
-        position: absolute;
-        inset: -40% 0 auto 0;
-        height: 540px;
-        background: radial-gradient(60% 60% at 50% 0%, rgba(216, 179, 74, 0.16), transparent 70%);
+        content: ''; position: absolute; top: -260px; left: 50%; transform: translateX(-50%);
+        width: 900px; height: 500px;
+        background: radial-gradient(50% 50% at 50% 50%, var(--accent-glow), transparent 70%);
         pointer-events: none;
       }
-      .badge {
-        width: 132px;
-        height: 132px;
-        filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
+      .hero-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+      .hero-text h1 {
+        font-family: var(--serif); font-size: clamp(2.2rem, 1rem + 4.5vw, 3.6rem); font-weight: 700;
+        letter-spacing: -.02em; line-height: 1.08; margin: 0; text-wrap: balance;
       }
-      h1 {
-        font-size: clamp(2.6rem, 1.4rem + 5vw, 4.6rem);
-        letter-spacing: -0.02em;
-        margin: 1.4rem 0 0.4rem;
-        font-weight: 700;
-        line-height: 1.05;
+      .hero-text .tagline {
+        color: var(--text-secondary); font-size: clamp(1rem, .9rem + .5vw, 1.15rem);
+        margin: 1rem 0 0; max-width: 40ch; text-wrap: pretty;
       }
-      .tagline {
-        color: var(--muted);
-        font-size: clamp(1.05rem, 0.95rem + 0.6vw, 1.4rem);
-        max-width: 44ch;
-        margin: 0 auto;
+      .hero-actions { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: 1.8rem; }
+      .hero-stack {
+        display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1.2rem;
+        color: var(--text-secondary); font-size: .82rem;
       }
-      .cta {
-        display: flex;
-        gap: 0.8rem;
-        justify-content: center;
-        flex-wrap: wrap;
-        margin-top: 2.2rem;
-      }
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.85rem 1.6rem;
-        border-radius: 999px;
-        font-weight: 600;
-        text-decoration: none;
-        transition:
-          transform 0.2s var(--ease),
-          background 0.2s var(--ease),
-          border-color 0.2s var(--ease);
-        border: 1px solid transparent;
-      }
-      .btn:hover {
-        transform: translateY(-2px);
-      }
-      .btn-primary {
-        background: var(--accent);
-        color: #1a1405;
-      }
-      .btn-primary:hover {
-        background: var(--accent-2);
-      }
-      .btn-ghost {
-        border-color: var(--line);
-        color: var(--text);
-        background: var(--surface);
-      }
-      .btn-ghost:hover {
-        border-color: #3c4a7a;
-      }
-      .platforms {
-        margin-top: 1.4rem;
-        color: var(--muted);
-        font-size: 0.9rem;
-      }
-      .platforms strong {
-        color: var(--accent-2);
+      .hero-stack span {
+        padding: .2rem .6rem; border-radius: 6px; background: var(--accent-subtle);
+        color: var(--accent); font-weight: 500; font-size: .78rem; letter-spacing: .01em;
       }
 
-      /* Sections */
-      section {
-        padding: var(--space) 0;
-        border-top: 1px solid var(--line);
+      .badge-svg {
+        width: 56px; height: 56px; margin-bottom: 1rem;
+        filter: drop-shadow(0 6px 16px rgba(0,0,0,.35));
+      }
+
+      .btn {
+        display: inline-flex; align-items: center; gap: .45rem; padding: .75rem 1.4rem;
+        border-radius: 10px; font-weight: 600; font-size: .92rem; text-decoration: none;
+        border: 1px solid transparent; cursor: pointer;
+        transition: transform .15s var(--ease), background .15s var(--ease), border-color .15s var(--ease), box-shadow .15s var(--ease);
+      }
+      .btn:hover { transform: translateY(-1px); }
+      .btn:active { transform: scale(.97); }
+      .btn-primary { background: var(--accent); color: #1a1405; font-weight: 700; }
+      .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 20px var(--accent-glow); }
+      .btn-ghost { border-color: var(--border); color: var(--text); background: var(--surface); }
+      .btn-ghost:hover { border-color: var(--border-hover); }
+
+      /* ── Workflow animation (hero right) ── */
+      .workflow-panel {
+        border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+        box-shadow: 0 8px 40px rgba(0,0,0,.3), 0 0 0 1px var(--accent-subtle);
+        background: var(--surface);
+      }
+      .workflow-header {
+        display: flex; align-items: center; gap: 6px; padding: .7rem 1rem;
+        border-bottom: 1px solid var(--border); font-size: .72rem;
+        font-family: var(--mono); color: var(--text-secondary); letter-spacing: .02em;
+      }
+      .workflow-header-dot { width: 10px; height: 10px; border-radius: 50%; }
+      .workflow-header-dot--r { background: var(--terminal-dot-red); }
+      .workflow-header-dot--y { background: var(--terminal-dot-yellow); }
+      .workflow-header-dot--g { background: var(--terminal-dot-green); }
+      .workflow-header-title { flex: 1; text-align: center; }
+
+      .workflow-body { padding: 1.2rem 1.4rem; min-height: 240px; }
+      .wf-step {
+        display: flex; align-items: center; gap: .8rem; padding: .65rem .9rem;
+        border-radius: var(--radius-sm); margin-bottom: .5rem;
+        border: 1px solid var(--border); background: var(--surface-raised);
+        opacity: .35; transform: translateX(-8px);
+        transition: opacity .4s var(--ease), transform .4s var(--ease), border-color .4s var(--ease), background .4s var(--ease);
+      }
+      .wf-step:last-child { margin-bottom: 0; }
+      .wf-step.active {
+        opacity: 1; transform: translateX(0); border-color: var(--accent);
+      }
+      .wf-step.done {
+        opacity: .7; transform: translateX(0); border-color: transparent;
+      }
+      .wf-icon {
+        flex: 0 0 auto; width: 32px; height: 32px; border-radius: 8px;
+        display: grid; place-items: center; font-size: .9rem;
+        background: var(--accent-subtle); color: var(--accent);
+        transition: background .4s var(--ease);
+      }
+      .wf-step.active .wf-icon { background: var(--accent); color: #1a1405; }
+      .wf-step.done .wf-icon { background: var(--get-bg); color: var(--get-text); }
+      .wf-label { font-size: .82rem; font-weight: 600; color: var(--text); }
+      .wf-sub { font-size: .72rem; color: var(--text-secondary); margin-top: .1rem; }
+      .wf-status {
+        margin-left: auto; font-size: .68rem; font-family: var(--mono);
+        font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
+        padding: .15rem .5rem; border-radius: 5px; white-space: nowrap;
+      }
+      .wf-step.active .wf-status { background: var(--post-bg); color: var(--post-text); }
+      .wf-step.done .wf-status { background: var(--get-bg); color: var(--get-text); }
+
+      .wf-connector {
+        width: 1px; height: 12px; margin: 0 0 0 2.4rem;
+        background: var(--border); transition: background .4s var(--ease);
+      }
+      .wf-connector.lit { background: var(--accent); }
+
+      /* ── Sections ── */
+      section { padding: var(--space) 0; border-top: 1px solid var(--border); }
+      .section-label {
+        font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+        color: var(--accent); margin: 0 0 .6rem; font-family: var(--sans);
       }
       h2 {
-        font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.4rem);
-        letter-spacing: -0.01em;
-        margin: 0 0 2.2rem;
-      }
-      .grid {
-        display: grid;
-        gap: 1rem;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      }
-      .card {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        padding: 1.5rem;
-        transition:
-          transform 0.25s var(--ease),
-          border-color 0.25s var(--ease);
-      }
-      .card:hover {
-        transform: translateY(-4px);
-        border-color: var(--accent);
-      }
-      .card h3 {
-        margin: 0 0 0.5rem;
-        font-size: 1.15rem;
-      }
-      .card p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 0.96rem;
-      }
-      .ico {
-        font-size: 1.5rem;
-        margin-bottom: 0.7rem;
-        display: block;
+        font-family: var(--serif); font-size: clamp(1.5rem, 1.1rem + 1.5vw, 2.2rem); font-weight: 700;
+        letter-spacing: -.01em; margin: 0 0 2rem; text-wrap: balance;
       }
 
-      /* Steps */
-      .steps {
-        display: grid;
-        gap: 1rem;
-        counter-reset: step;
+      /* ── Feature cards ── */
+      .cap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+      .cap-card {
+        background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 1.4rem; transition: transform .2s var(--ease), border-color .25s var(--ease), box-shadow .25s var(--ease);
       }
-      .step {
-        display: flex;
-        gap: 1.1rem;
-        align-items: flex-start;
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-left: 3px solid var(--accent);
-        border-radius: var(--radius);
-        padding: 1.2rem 1.5rem;
-        transition: border-color 0.25s var(--ease);
+      .cap-card:hover { transform: translateY(-3px); border-color: var(--border-hover); box-shadow: 0 8px 30px rgba(0,0,0,.15); }
+      .cap-card h3 { margin: 0 0 .4rem; font-size: 1.05rem; font-family: var(--serif); font-weight: 600; }
+      .cap-icon { font-size: 1.3rem; margin-bottom: .6rem; display: block; }
+      .cap-desc { color: var(--text-secondary); font-size: .88rem; margin: 0; text-wrap: pretty; line-height: 1.55; }
+
+      /* ── How it works (flow) ── */
+      .flow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; }
+      .flow-step {
+        text-align: center; padding: 1.4rem 1rem; position: relative;
       }
-      .step:hover {
-        border-left-color: var(--accent-2);
+      .flow-num {
+        width: 2.8rem; height: 2.8rem; border-radius: 50%; margin: 0 auto .9rem;
+        display: grid; place-items: center; font-weight: 700; font-size: 1rem;
+        font-family: var(--mono); font-variant-numeric: tabular-nums;
+        background: var(--accent-subtle); color: var(--accent); border: 2px solid var(--accent);
+        position: relative; z-index: 2;
       }
-      .step::before {
-        counter-increment: step;
-        content: counter(step);
-        flex: 0 0 auto;
-        width: 2.2rem;
-        height: 2.2rem;
-        border-radius: 50%;
-        background: rgba(216, 179, 74, 0.14);
-        color: var(--accent-2);
-        display: grid;
-        place-items: center;
-        font-weight: 700;
-        font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      .flow-step h3 { font-family: var(--serif); font-size: .95rem; margin: 0 0 .35rem; font-weight: 600; }
+      .flow-step p { color: var(--text-secondary); font-size: .82rem; margin: 0; line-height: 1.5; }
+      .flow-arrow {
+        position: absolute; top: 2.8rem; left: calc(50% + 1.4rem); width: calc(100% - 2.8rem);
+        height: 2px; background: var(--border); z-index: 1;
       }
-      .step p {
-        margin: 0;
-        color: var(--muted);
+      .flow-arrow::after {
+        content: ''; position: absolute; right: -1px; top: -4px;
+        border: 5px solid transparent; border-left: 6px solid var(--accent);
       }
-      .step strong {
-        color: var(--text);
-        font-weight: 600;
+      .flow-step:last-child .flow-arrow { display: none; }
+
+      /* ── API section ── */
+      .api-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+      .api-info h3 { font-family: var(--serif); font-size: 1.1rem; margin: 0 0 .4rem; }
+      .api-info p { color: var(--text-secondary); font-size: .88rem; margin: 0 0 1rem; line-height: 1.55; }
+
+      .method-badge {
+        display: inline-block; padding: .12rem .5rem; border-radius: 5px; font-size: .7rem;
+        font-weight: 700; letter-spacing: .04em; font-family: var(--mono); font-variant-numeric: tabular-nums;
+      }
+      .method-post { background: var(--post-bg); color: var(--post-text); }
+      .method-get { background: var(--get-bg); color: var(--get-text); }
+
+      .ep-path { font-family: var(--mono); font-size: .88rem; font-weight: 500; color: var(--text); }
+
+      /* ── Tabs ── */
+      .tabs-bar {
+        display: flex; gap: .25rem; padding: .25rem; background: var(--surface);
+        border: 1px solid var(--border); border-radius: 10px; margin-bottom: 1.2rem; width: fit-content;
+      }
+      .tab-btn {
+        padding: .55rem 1.2rem; border-radius: 7px; border: none; background: none;
+        font-family: var(--sans); font-size: .88rem; font-weight: 600; color: var(--text-secondary);
+        cursor: pointer; transition: background .15s var(--ease), color .15s var(--ease);
+        min-height: 40px;
+      }
+      .tab-btn:hover { color: var(--text); background: var(--accent-subtle); }
+      .tab-btn[aria-selected="true"] { background: var(--accent); color: #1a1405; }
+      .tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+
+      /* ── Code blocks ── */
+      .code-block {
+        position: relative; border: 1px solid var(--border); border-radius: var(--radius);
+        overflow: hidden; margin-bottom: 1rem;
+      }
+      .code-block:last-child { margin-bottom: 0; }
+      .code-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: .5rem .9rem; background: var(--surface); border-bottom: 1px solid var(--border);
+        font-size: .76rem; color: var(--text-secondary);
+      }
+      .code-label { font-family: var(--mono); font-weight: 500; }
+      .copy-btn {
+        padding: .3rem .7rem; border-radius: 6px; border: 1px solid var(--border);
+        background: var(--surface-raised); font-family: var(--sans); font-size: .75rem;
+        font-weight: 600; color: var(--text-secondary); cursor: pointer;
+        transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease);
+        min-height: 30px;
+      }
+      .copy-btn:hover { border-color: var(--border-hover); color: var(--text); }
+      .copy-btn:active { transform: scale(.96); }
+      .copy-btn.copied { border-color: var(--get-text); color: var(--get-text); }
+      .code-block pre {
+        background: var(--terminal-bg); margin: 0; padding: 1rem 1.1rem;
+        font-family: var(--mono); font-size: .82rem; line-height: 1.7; color: #b4c0d4;
+        overflow-x: auto; border: none; border-radius: 0; white-space: pre-wrap; word-break: break-all;
+      }
+      .code-block .cf { color: var(--code-flag); }
+      .code-block .cs { color: var(--code-string); }
+      .code-block .cc { color: var(--code-comment); }
+
+      /* ── Quick start ── */
+      .qs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+      .qs-card {
+        background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 1.3rem 1.4rem; display: flex; gap: 1rem; align-items: flex-start;
+        transition: border-color .2s var(--ease);
+      }
+      .qs-card:hover { border-color: var(--border-hover); }
+      .qs-num {
+        flex: 0 0 auto; width: 2rem; height: 2rem; border-radius: 8px;
+        background: var(--accent-subtle); color: var(--accent); display: grid; place-items: center;
+        font-weight: 700; font-size: .85rem; font-variant-numeric: tabular-nums;
+      }
+      .qs-card strong { color: var(--text); display: block; margin-bottom: .2rem; }
+      .qs-card p { margin: 0; color: var(--text-secondary); font-size: .88rem; text-wrap: pretty; }
+      .qs-card code {
+        font-family: var(--mono); font-size: .78rem; background: var(--surface-raised);
+        border: 1px solid var(--border); border-radius: 5px; padding: .1rem .4rem;
       }
 
-      code {
-        font-family: 'SF Mono', ui-monospace, Menlo, monospace;
-        background: var(--surface-2);
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 0.1rem 0.4rem;
-        font-size: 0.85em;
-      }
-      pre {
-        background: var(--surface-2);
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 1.1rem 1.3rem;
-        overflow-x: auto;
-        margin: 0;
-        font-size: 0.86rem;
-        line-height: 1.7;
-        color: var(--text);
-        font-family: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, monospace;
-      }
-      pre .c {
-        color: var(--muted);
-      }
-      pre .p {
-        color: var(--accent-2);
-      }
+      /* ── Scroll reveal ── */
+      .reveal { opacity: 0; transform: translateY(20px); transition: opacity .5s var(--ease), transform .5s var(--ease); }
+      .reveal.visible { opacity: 1; transform: translateY(0); }
 
-      /* Portfolio nav */
-      .nav-home {
-        position: fixed;
-        top: 1rem;
-        left: 1rem;
-        z-index: 50;
-        display: flex;
-        gap: 0.5rem;
-      }
-      .nav-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.5rem 0.9rem;
-        border-radius: 999px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-        text-decoration: none;
-        color: var(--text);
-        background: var(--surface);
-        background: color-mix(in srgb, var(--surface) 82%, transparent);
-        border: 1px solid var(--line);
-        -webkit-backdrop-filter: blur(8px);
-        backdrop-filter: blur(8px);
-        transition:
-          transform 0.2s var(--ease),
-          border-color 0.2s var(--ease),
-          background 0.2s var(--ease);
-      }
-      .nav-btn:hover {
-        transform: translateY(-2px);
-        border-color: var(--accent);
-      }
-
+      /* ── Footer ── */
       footer {
-        text-align: center;
-        color: var(--muted);
-        padding: 3rem 0;
-        border-top: 1px solid var(--line);
-        font-size: 0.9rem;
+        text-align: center; color: var(--text-secondary); padding: 2.5rem 0;
+        border-top: 1px solid var(--border); font-size: .85rem;
       }
-      footer a {
-        color: var(--text);
-        text-decoration: none;
-        border-bottom: 1px solid var(--line);
+      footer a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); }
+      footer a:hover { border-color: var(--accent); }
+      footer p { margin: .3rem 0; }
+
+      /* ── Responsive ── */
+      @media (max-width: 900px) {
+        .hero-inner { grid-template-columns: 1fr; text-align: center; }
+        .hero-text .tagline { margin-left: auto; margin-right: auto; }
+        .hero-actions { justify-content: center; }
+        .hero-stack { justify-content: center; }
+        .cap-grid { grid-template-columns: 1fr; }
+        .flow-grid { grid-template-columns: 1fr; gap: 0; }
+        .flow-arrow { display: none; }
+        .flow-step { text-align: left; display: flex; gap: 1rem; align-items: flex-start; padding: .9rem 0; }
+        .flow-num { margin: 0; flex: 0 0 2.8rem; }
+        .flow-step h3, .flow-step p { text-align: left; }
+        .api-grid { grid-template-columns: 1fr; }
+        .qs-grid { grid-template-columns: 1fr; }
+        .tabs-bar { width: 100%; }
+        .tab-btn { flex: 1; text-align: center; }
       }
+
       @media (prefers-reduced-motion: reduce) {
-        * {
-          transition: none !important;
-          scroll-behavior: auto;
-        }
+        *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
+        html { scroll-behavior: auto; }
+        .reveal { opacity: 1; transform: none; }
+        .wf-step { opacity: 1; transform: none; }
       }
     </style>
   </head>
   <body>
+    <!-- Portfolio nav -->
     <nav class="nav-home" id="navHome" hidden aria-label="Back to portfolio">
-      <a class="nav-btn" id="navBack" href="https://karantrehan3.github.io/" rel="noopener">← Back</a>
-      <a class="nav-btn" href="https://karantrehan3.github.io/" rel="noopener">⌂ Home</a>
+      <a class="nav-btn" id="navBack" href="https://karantrehan3.github.io/" rel="noopener">&#8592; Back</a>
+      <a class="nav-btn" href="https://karantrehan3.github.io/" rel="noopener">&#8962; Home</a>
     </nav>
+
+    <!-- Theme toggle -->
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+      <span class="icon-sun" aria-hidden="true">&#9788;</span>
+      <span class="icon-moon" aria-hidden="true">&#9790;</span>
+    </button>
+
+    <!-- Hero -->
     <header class="hero">
       <div class="wrap">
-        <svg class="badge" viewBox="0 0 132 132" role="img" aria-label="Cause List Checker icon">
-          <defs>
-            <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#1b2440" />
-              <stop offset="1" stop-color="#0d1426" />
-            </linearGradient>
-          </defs>
-          <rect x="2" y="2" width="128" height="128" rx="30" fill="url(#bg)" stroke="#283255" />
-          <rect x="38" y="30" width="44" height="58" rx="5" fill="none" stroke="#d8b34a" stroke-width="3" />
-          <line x1="47" y1="44" x2="73" y2="44" stroke="#f0d27a" stroke-width="3" stroke-linecap="round" />
-          <line x1="47" y1="54" x2="73" y2="54" stroke="#97a0bd" stroke-width="3" stroke-linecap="round" />
-          <line x1="47" y1="64" x2="65" y2="64" stroke="#97a0bd" stroke-width="3" stroke-linecap="round" />
-          <circle cx="82" cy="80" r="16" fill="#0d1426" stroke="#f0d27a" stroke-width="4" />
-          <line x1="93" y1="91" x2="106" y2="104" stroke="#f0d27a" stroke-width="5" stroke-linecap="round" />
-        </svg>
-        <h1>Cause List Checker</h1>
-        <p class="tagline sans">
-          Searches Punjab &amp; Haryana High Court cause-list PDFs for your cases and emails you the moment one
-          is listed for a hearing.
-        </p>
-        <div class="cta sans">
-          <a class="btn btn-primary" href="https://github.com/karantrehan3/cause-list-checker">View on GitHub</a>
-          <a class="btn btn-ghost" href="#how">How it works</a>
+        <div class="hero-inner">
+          <div class="hero-text">
+            <svg class="badge-svg" viewBox="0 0 132 132" role="img" aria-label="Cause List Checker icon">
+              <defs>
+                <linearGradient id="badge-bg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#1b2440" />
+                  <stop offset="1" stop-color="#0d1426" />
+                </linearGradient>
+              </defs>
+              <rect x="2" y="2" width="128" height="128" rx="30" fill="url(#badge-bg)" stroke="#283255" />
+              <rect x="38" y="30" width="44" height="58" rx="5" fill="none" stroke="#d8b34a" stroke-width="3" />
+              <line x1="47" y1="44" x2="73" y2="44" stroke="#f0d27a" stroke-width="3" stroke-linecap="round" />
+              <line x1="47" y1="54" x2="73" y2="54" stroke="#97a0bd" stroke-width="3" stroke-linecap="round" />
+              <line x1="47" y1="64" x2="65" y2="64" stroke="#97a0bd" stroke-width="3" stroke-linecap="round" />
+              <circle cx="82" cy="80" r="16" fill="#0d1426" stroke="#f0d27a" stroke-width="4" />
+              <line x1="93" y1="91" x2="106" y2="104" stroke="#f0d27a" stroke-width="5" stroke-linecap="round" />
+            </svg>
+            <h1>Cause List Checker</h1>
+            <p class="tagline">Searches Punjab &amp; Haryana High Court cause-list PDFs for your cases and emails you the moment one is listed for hearing.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="https://github.com/karantrehan3/cause-list-checker">View on GitHub</a>
+              <a class="btn btn-ghost" href="#how">How it works</a>
+            </div>
+            <div class="hero-stack">
+              <span>FastAPI</span> <span>Docker</span> <span>Gmail SMTP</span> <span>Async Queue</span> <span>PHHC API</span>
+            </div>
+          </div>
+          <div class="hero-workflow" aria-label="Animated workflow showing how a cause-list search is processed">
+            <div class="workflow-panel">
+              <div class="workflow-header">
+                <span class="workflow-header-dot workflow-header-dot--r"></span>
+                <span class="workflow-header-dot workflow-header-dot--y"></span>
+                <span class="workflow-header-dot workflow-header-dot--g"></span>
+                <span class="workflow-header-title">cause-list-checker &mdash; pipeline</span>
+              </div>
+              <div class="workflow-body" id="workflowBody">
+                <div class="wf-step" data-wf="0">
+                  <div class="wf-icon">&#128269;</div>
+                  <div>
+                    <div class="wf-label">Search queued</div>
+                    <div class="wf-sub">POST /search/cause-list</div>
+                  </div>
+                  <div class="wf-status">waiting</div>
+                </div>
+                <div class="wf-connector"></div>
+                <div class="wf-step" data-wf="1">
+                  <div class="wf-icon">&#128196;</div>
+                  <div>
+                    <div class="wf-label">PDFs downloaded</div>
+                    <div class="wf-sub">highcourtchd.gov.in</div>
+                  </div>
+                  <div class="wf-status">waiting</div>
+                </div>
+                <div class="wf-connector"></div>
+                <div class="wf-step" data-wf="2">
+                  <div class="wf-icon">&#9989;</div>
+                  <div>
+                    <div class="wf-label">Match found</div>
+                    <div class="wf-sub">CWP-12345-2023 on page 14</div>
+                  </div>
+                  <div class="wf-status">waiting</div>
+                </div>
+                <div class="wf-connector"></div>
+                <div class="wf-step" data-wf="3">
+                  <div class="wf-icon">&#128231;</div>
+                  <div>
+                    <div class="wf-label">Email sent</div>
+                    <div class="wf-sub">lawyer@example.com</div>
+                  </div>
+                  <div class="wf-status">waiting</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <p class="platforms sans">
-          <strong>FastAPI</strong> · Dockerised · Gmail notifications · queued &amp; weekend-aware
-        </p>
       </div>
     </header>
 
     <main>
-      <section id="features">
+      <!-- Features -->
+      <section id="features" class="reveal">
         <div class="wrap">
+          <p class="section-label">Capabilities</p>
           <h2>What it does</h2>
-          <div class="grid sans">
-            <div class="card">
-              <span class="ico">🔎</span>
+          <div class="cap-grid">
+            <div class="cap-card">
+              <span class="cap-icon" aria-hidden="true">&#128270;</span>
               <h3>Automated case search</h3>
-              <p>
-                Downloads the day's cause-list PDFs from highcourtchd.gov.in and scans every page for your case
-                numbers and keywords.
-              </p>
+              <p class="cap-desc">Downloads the day's cause-list PDFs from highcourtchd.gov.in and scans every page for your case numbers and keywords.</p>
             </div>
-            <div class="card">
-              <span class="ico">📧</span>
-              <h3>Emailed when listed</h3>
-              <p>
-                Sends a formatted alert to every recipient with the matching pages, context, and the hearing
-                date — straight to your inbox via Gmail.
-              </p>
+            <div class="cap-card">
+              <span class="cap-icon" aria-hidden="true">&#128231;</span>
+              <h3>Email when listed</h3>
+              <p class="cap-desc">Sends a formatted alert to every recipient with matching pages, context, and the hearing date &mdash; straight to your inbox via Gmail.</p>
             </div>
-            <div class="card">
-              <span class="ico">📅</span>
+            <div class="cap-card">
+              <span class="cap-icon" aria-hidden="true">&#128197;</span>
               <h3>Weekend-aware dates</h3>
-              <p>
-                A Friday search rolls forward through Saturday, Sunday and Monday automatically, so nothing slips
-                past the weekend.
-              </p>
+              <p class="cap-desc">A Friday search rolls forward through Saturday, Sunday and Monday automatically, so nothing slips past the weekend.</p>
             </div>
-            <div class="card">
-              <span class="ico">⚙️</span>
+            <div class="cap-card">
+              <span class="cap-icon" aria-hidden="true">&#9881;</span>
               <h3>Queued &amp; resilient</h3>
-              <p>
-                An async task queue processes requests sequentially with retry &amp; backoff and built-in rate
-                limiting, so the court site is never hammered.
-              </p>
+              <p class="cap-desc">An async task queue processes requests sequentially with retry &amp; exponential backoff and built-in rate limiting.</p>
             </div>
-            <div class="card">
-              <span class="ico">📑</span>
+            <div class="cap-card">
+              <span class="cap-icon" aria-hidden="true">&#128209;</span>
               <h3>Full case details</h3>
-              <p>
-                Pulls case status, listing history, related cases, judgments, copy petitions and impugned orders
-                straight from the PHHC JSON API.
-              </p>
+              <p class="cap-desc">Pulls case status, listing history, related cases, judgments, and impugned orders straight from the PHHC JSON API.</p>
             </div>
-            <div class="card">
-              <span class="ico">🔐</span>
+            <div class="cap-card">
+              <span class="cap-icon" aria-hidden="true">&#128274;</span>
               <h3>Secured &amp; Dockerised</h3>
-              <p>
-                Every endpoint is gated by a bearer <code>AUTH_TOKEN</code>, and the whole thing ships as a
-                Docker container that runs as a non-root user.
-              </p>
+              <p class="cap-desc">Every endpoint is gated by a bearer token, and the whole thing ships as a Docker container running as a non-root user.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="architecture">
+      <!-- How it works -->
+      <section id="how" class="reveal">
         <div class="wrap">
-          <h2>Under the hood</h2>
-          <div class="grid sans">
-            <div class="card">
-              <h3>FastAPI server</h3>
-              <p>RESTful endpoints for case-search operations, with token-based authentication middleware.</p>
+          <p class="section-label">Architecture</p>
+          <h2>How it works</h2>
+          <div class="flow-grid">
+            <div class="flow-step">
+              <div class="flow-num">1</div>
+              <div>
+                <h3>Queue the request</h3>
+                <p>Hit <code class="inline-code">POST /search/cause-list</code> with search terms, a date, and recipient emails. It lands on an async queue.</p>
+              </div>
+              <div class="flow-arrow" aria-hidden="true"></div>
             </div>
-            <div class="card">
-              <h3>Queue manager</h3>
-              <p>Asynchronous task queue with retry logic, unique task IDs, and live status monitoring.</p>
+            <div class="flow-step">
+              <div class="flow-num">2</div>
+              <div>
+                <h3>Fetch the lists</h3>
+                <p>The scraper pulls cause-list PDFs from the court site and, in parallel, fetches case details from the PHHC JSON API.</p>
+              </div>
+              <div class="flow-arrow" aria-hidden="true"></div>
             </div>
-            <div class="card">
-              <h3>PDF searcher</h3>
-              <p>Scans downloaded cause-list PDFs for your terms, returning page numbers and surrounding context.</p>
+            <div class="flow-step">
+              <div class="flow-num">3</div>
+              <div>
+                <h3>Search the PDFs</h3>
+                <p>Every downloaded PDF is scanned for your terms, capturing page numbers and surrounding context for each hit.</p>
+              </div>
+              <div class="flow-arrow" aria-hidden="true"></div>
             </div>
-            <div class="card">
-              <h3>Web scraper</h3>
-              <p>Downloads the lists from highcourtchd.gov.in and fetches case details via the PHHC JSON API.</p>
-            </div>
-            <div class="card">
-              <h3>Email service</h3>
-              <p>Sends formatted result notifications over Gmail SMTP, using an app password for auth.</p>
-            </div>
-            <div class="card">
-              <h3>Auth layer</h3>
-              <p>Bearer-token authentication on every route keeps the API private to authorised callers.</p>
+            <div class="flow-step">
+              <div class="flow-num">4</div>
+              <div>
+                <h3>Email the results</h3>
+                <p>A formatted notification &mdash; matches, dates, case details &mdash; is sent to all recipients with automatic retries.</p>
+              </div>
+              <div class="flow-arrow" aria-hidden="true"></div>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="api">
+      <!-- API -->
+      <section id="api" class="reveal">
         <div class="wrap">
+          <p class="section-label">API Reference</p>
           <h2>Talking to the API</h2>
-          <p class="tagline sans" style="margin: 0 0 1.6rem; max-width: 60ch; text-align: left">
-            Queue a search with your case terms, the date to check, and who to notify — then a health check to
-            confirm the service is up.
-          </p>
-          <pre><span class="c"># is it up?</span>
-curl http://localhost:3080/health
 
-<span class="c"># queue a cause-list search</span>
-curl -X POST http://localhost:3080/search/cause-list \
-  -H <span class="p">"Authorization: Bearer $AUTH_TOKEN"</span> \
-  -H "Content-Type: application/json" \
-  -d '{
+          <div class="tabs-bar" role="tablist" aria-label="API endpoint">
+            <button class="tab-btn" role="tab" aria-selected="true" aria-controls="panel-search" id="tab-search">Search</button>
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-health" id="tab-health">Health</button>
+          </div>
+
+          <div id="panel-search" class="tab-panel active" role="tabpanel" aria-labelledby="tab-search">
+            <div class="api-grid">
+              <div class="api-info">
+                <h3><span class="method-badge method-post">POST</span> &nbsp;<span class="ep-path">/search/cause-list</span></h3>
+                <p>Queue a cause-list search. Pass your case terms, the date to check, and who to notify. The request enters an async queue and is processed with retry logic.</p>
+                <p style="color:var(--text);font-size:.85rem;font-weight:600;margin-top:.4rem">Request body</p>
+                <ul style="color:var(--text-secondary);font-size:.85rem;padding-left:1.2rem;margin:.4rem 0 0;line-height:1.7">
+                  <li><code class="inline-code">search_terms</code> &mdash; array of case numbers or keywords</li>
+                  <li><code class="inline-code">date</code> &mdash; DD/MM/YYYY to check</li>
+                  <li><code class="inline-code">recipient_emails</code> &mdash; who gets the results</li>
+                  <li><code class="inline-code">case_details</code> &mdash; optional PHHC case lookup fields</li>
+                </ul>
+              </div>
+              <div>
+                <div class="code-block">
+                  <div class="code-header">
+                    <span class="code-label">curl</span>
+                    <button class="copy-btn" aria-label="Copy to clipboard">Copy</button>
+                  </div>
+                  <pre><code><span class="cc"># queue a cause-list search</span>
+curl <span class="cf">-X POST</span> http://localhost:3080/search/cause-list \
+  <span class="cf">-H</span> <span class="cs">"Authorization: Bearer $AUTH_TOKEN"</span> \
+  <span class="cf">-H</span> <span class="cs">"Content-Type: application/json"</span> \
+  <span class="cf">-d</span> <span class="cs">'{
     "search_terms": ["CWP-12345-2023"],
     "date": "15/12/2024",
     "recipient_emails": ["lawyer@example.com"],
-    "case_details": { "no": "12345", "type": "CWP", "year": "2023" }
-  }'</pre>
+    "case_details": {
+      "no": "12345",
+      "type": "CWP",
+      "year": "2023"
+    }
+  }'</span></code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="panel-health" class="tab-panel" role="tabpanel" aria-labelledby="tab-health">
+            <div class="api-grid">
+              <div class="api-info">
+                <h3><span class="method-badge method-get">GET</span> &nbsp;<span class="ep-path">/health</span></h3>
+                <p>Simple health check to confirm the service is running. No authentication required. Returns a JSON status object.</p>
+              </div>
+              <div>
+                <div class="code-block">
+                  <div class="code-header">
+                    <span class="code-label">curl</span>
+                    <button class="copy-btn" aria-label="Copy to clipboard">Copy</button>
+                  </div>
+                  <pre><code><span class="cc"># health check</span>
+curl http://localhost:3080/health</code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section id="how">
+      <!-- Quick start -->
+      <section id="start" class="reveal">
         <div class="wrap">
-          <h2>How it works</h2>
-          <div class="steps sans">
-            <div class="step">
-              <p>
-                <strong>Queue the request.</strong> Hit <code>POST /search/cause-list</code> with your search
-                terms, a date, and the recipient emails. It lands on an asynchronous queue.
-              </p>
+          <p class="section-label">Get Started</p>
+          <h2>Running in under a minute</h2>
+          <div class="qs-grid">
+            <div class="qs-card">
+              <div class="qs-num">1</div>
+              <div>
+                <strong>Clone the repo</strong>
+                <p><code>git clone https://github.com/karantrehan3/cause-list-checker.git</code></p>
+              </div>
             </div>
-            <div class="step">
-              <p>
-                <strong>Fetch the lists.</strong> The scraper pulls the cause-list PDFs for each date and, in
-                parallel, fetches detailed case status from the PHHC JSON API.
-              </p>
+            <div class="qs-card">
+              <div class="qs-num">2</div>
+              <div>
+                <strong>Configure secrets</strong>
+                <p>Copy <code>.env.example</code> to <code>.env</code> and fill in your Gmail app password and auth token.</p>
+              </div>
             </div>
-            <div class="step">
-              <p>
-                <strong>Search the PDFs.</strong> Every downloaded PDF is scanned for your terms, capturing the
-                page number and surrounding context for each hit.
-              </p>
+            <div class="qs-card">
+              <div class="qs-num">3</div>
+              <div>
+                <strong>Start with Docker</strong>
+                <p><code>docker compose up --build</code> serves on port 3080.</p>
+              </div>
             </div>
-            <div class="step">
-              <p>
-                <strong>Email the results.</strong> A formatted notification — matches, dates, case details — is
-                sent to all recipients, with automatic retries on failure.
-              </p>
+            <div class="qs-card">
+              <div class="qs-num">4</div>
+              <div>
+                <strong>Queue a search</strong>
+                <p>Hit <code>POST /search/cause-list</code> with your terms and wait for the email.</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
     </main>
 
-    <footer class="sans">
+    <footer>
       <div class="wrap">
-        <p>
-          Built with FastAPI &amp; Python ·
-          <a href="https://github.com/karantrehan3/cause-list-checker">GitHub</a> ·
-          <a href="https://github.com/karantrehan3/cause-list-checker/blob/master/LICENSE">MIT</a>
-        </p>
-        <p>© 2022 Karan Trehan</p>
+        <p>Built with FastAPI &amp; Python &middot; <a href="https://github.com/karantrehan3/cause-list-checker">GitHub</a> &middot; <a href="https://github.com/karantrehan3/cause-list-checker/blob/master/LICENSE">MIT</a></p>
+        <p>&copy; 2022 Karan Trehan</p>
       </div>
     </footer>
+
     <script>
-      (function () {
-        if (new URLSearchParams(location.search).get('ref') !== 'portfolio') return;
+    (function () {
+      /* ── Portfolio nav ── */
+      if (new URLSearchParams(location.search).get('ref') === 'portfolio') {
         var nav = document.getElementById('navHome');
         if (nav) nav.removeAttribute('hidden');
         var back = document.getElementById('navBack');
-        if (back)
-          back.addEventListener('click', function (e) {
-            if (document.referrer && history.length > 1) {
-              e.preventDefault();
-              history.back();
-            }
+        if (back) back.addEventListener('click', function (e) {
+          if (document.referrer && history.length > 1) { e.preventDefault(); history.back(); }
+        });
+      }
+
+      /* ── Theme toggle ── */
+      var toggle = document.getElementById('themeToggle');
+      var root = document.documentElement;
+
+      function applyTheme(theme) {
+        root.setAttribute('data-theme', theme);
+        var sun = toggle.querySelector('.icon-sun');
+        var moon = toggle.querySelector('.icon-moon');
+        if (theme === 'dark') {
+          sun.style.display = 'inline';
+          moon.style.display = 'none';
+        } else {
+          sun.style.display = 'none';
+          moon.style.display = 'inline';
+        }
+      }
+
+      var stored = null;
+      try { stored = localStorage.getItem('theme'); } catch (e) {}
+      if (stored === 'light' || stored === 'dark') {
+        applyTheme(stored);
+      } else {
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(prefersDark ? 'dark' : 'light');
+      }
+
+      toggle.addEventListener('click', function () {
+        var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      });
+
+      /* ── Workflow animation ── */
+      var steps = document.querySelectorAll('.wf-step');
+      var connectors = document.querySelectorAll('.wf-connector');
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      var statusLabels = [
+        ['queued', 'scanning', 'matched', 'delivered'],
+        ['queued', 'fetching', 'found', 'sent']
+      ];
+      var labelSet = 0;
+
+      function resetWorkflow() {
+        steps.forEach(function (s) {
+          s.classList.remove('active', 'done');
+          s.querySelector('.wf-status').textContent = 'waiting';
+        });
+        connectors.forEach(function (c) { c.classList.remove('lit'); });
+      }
+
+      function runWorkflow() {
+        var labels = statusLabels[labelSet];
+        labelSet = (labelSet + 1) % statusLabels.length;
+        resetWorkflow();
+
+        if (reduceMotion) {
+          steps.forEach(function (s, i) {
+            s.classList.add('done');
+            s.querySelector('.wf-status').textContent = labels[i];
           });
-      })();
+          connectors.forEach(function (c) { c.classList.add('lit'); });
+          setTimeout(runWorkflow, 3500);
+          return;
+        }
+
+        var i = 0;
+        function activateStep() {
+          if (i >= steps.length) {
+            setTimeout(function () {
+              resetWorkflow();
+              setTimeout(runWorkflow, 600);
+            }, 2200);
+            return;
+          }
+
+          steps[i].classList.add('active');
+          steps[i].querySelector('.wf-status').textContent = labels[i];
+
+          setTimeout(function () {
+            steps[i].classList.remove('active');
+            steps[i].classList.add('done');
+            if (connectors[i]) connectors[i].classList.add('lit');
+            i++;
+            setTimeout(activateStep, 200);
+          }, 900);
+        }
+
+        setTimeout(activateStep, 400);
+      }
+
+      runWorkflow();
+
+      /* ── Tabs ── */
+      var tabs = document.querySelectorAll('.tab-btn');
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          tabs.forEach(function (t) {
+            t.setAttribute('aria-selected', 'false');
+            document.getElementById(t.getAttribute('aria-controls')).classList.remove('active');
+          });
+          tab.setAttribute('aria-selected', 'true');
+          document.getElementById(tab.getAttribute('aria-controls')).classList.add('active');
+        });
+        tab.addEventListener('keydown', function (e) {
+          var idx = Array.from(tabs).indexOf(tab);
+          var next = -1;
+          if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+          else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
+          if (next >= 0) { e.preventDefault(); tabs[next].click(); tabs[next].focus(); }
+        });
+      });
+
+      /* ── Copy buttons ── */
+      document.querySelectorAll('.copy-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var code = btn.closest('.code-block').querySelector('code');
+          var text = code.textContent;
+          navigator.clipboard.writeText(text).then(function () {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+          });
+        });
+      });
+
+      /* ── Scroll reveal ── */
+      if (!reduceMotion && 'IntersectionObserver' in window) {
+        var obs = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
+          });
+        }, { threshold: 0.12 });
+        document.querySelectorAll('.reveal').forEach(function (el) { obs.observe(el); });
+      } else {
+        document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('visible'); });
+      }
+
+      /* ── Inline code styling ── */
+      var style = document.createElement('style');
+      style.textContent = '.inline-code{font-family:var(--mono);font-size:.82em;background:var(--surface-raised);border:1px solid var(--border);border-radius:5px;padding:.1rem .4rem}';
+      document.head.appendChild(style);
+    })();
     </script>
   </body>
 </html>
