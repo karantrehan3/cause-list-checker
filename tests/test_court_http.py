@@ -137,3 +137,22 @@ def test_create_session_verifies_tls_and_mounts_retries():
 
     assert session.verify
     assert session.get_adapter("https://court").max_retries.total == 3
+
+
+def test_cookie_jar_is_used_by_the_session_so_cookies_persist(client):
+    jar = requests.cookies.RequestsCookieJar()
+    session = _session_returning(_ok({"a": 1}))
+    with patch.object(CourtHttpClient, "_create_session", return_value=session):
+        client.request("GET", "https://court/x", cookie_jar=jar)
+
+    assert session.cookies is jar
+    assert "cookie_jar" not in session.request.call_args.kwargs
+
+
+def test_without_cookie_jar_each_request_starts_fresh(client):
+    session = _session_returning(_ok({"a": 1}))
+    original_cookies = session.cookies
+    with patch.object(CourtHttpClient, "_create_session", return_value=session):
+        client.request("GET", "https://court/x")
+
+    assert session.cookies is original_cookies

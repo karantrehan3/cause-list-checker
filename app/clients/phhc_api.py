@@ -7,8 +7,10 @@ whether a failure is fatal or should be reported as an incomplete check.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from requests.cookies import RequestsCookieJar
+
 from app.clients.court_http import SLOW_TIMEOUT, CourtHttpClient, CourtSiteError
-from app.config import settings
+from app.config import API_REQUEST_HEADERS, settings
 
 
 def to_api_date(date: str) -> str:
@@ -24,12 +26,17 @@ class PhhcApi:
     ):
         self.client = client or CourtHttpClient()
         self.base_url = base_url or settings.PHHC_API_BASE_URL
+        self.cookies = RequestsCookieJar()  # the API's own cookies, kept per run
 
     def _get(
         self, endpoint: str, params: Optional[Dict[str, str]] = None, **kwargs: Any
     ) -> Any:
         return self.client.get_json(
-            f"{self.base_url}{endpoint}", params=params, **kwargs
+            f"{self.base_url}{endpoint}",
+            params=params,
+            headers=API_REQUEST_HEADERS,
+            cookie_jar=self.cookies,
+            **kwargs,
         )
 
     @staticmethod

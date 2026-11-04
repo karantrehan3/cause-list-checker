@@ -39,3 +39,19 @@ REQUEST_HEADERS = {
     "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
     "Upgrade-Insecure-Requests": "1",
 }
+
+# What Chrome sends when the new.phhc.gov.in frontend calls its JSON API
+# (livedb9010.phhc.gov.in): a same-site XHR, not a page navigation.
+API_REQUEST_HEADERS = {
+    "User-Agent": REQUEST_HEADERS["User-Agent"],
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": REQUEST_HEADERS["Accept-Language"],
+    "Origin": "https://new.phhc.gov.in",
+    "Referer": "https://new.phhc.gov.in/",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
+    "sec-ch-ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"macOS"',
+}

@@ -4,6 +4,7 @@ import pytest
 
 from app.clients.court_http import SLOW_TIMEOUT, CourtSiteError
 from app.clients.phhc_api import PhhcApi, to_api_date
+from app.config import API_REQUEST_HEADERS, REQUEST_HEADERS
 
 BASE = "https://api.court"
 
@@ -119,3 +120,25 @@ def test_daily_pdf_list_types_and_url(api, client):
         api.daily_pdf_url("05/11/2026", "O", "M")
         == f"{BASE}/public/daily-causelist-pdf/2026-11-05/O/M"
     )
+
+
+def test_api_calls_send_browser_xhr_headers_and_share_one_cookie_jar(api, client):
+    client.get_json.return_value = []
+
+    api.active_judges()
+    api.daily_cause_list(650, "05/11/2026")
+
+    first, second = client.get_json.call_args_list
+    assert first.kwargs["headers"] is API_REQUEST_HEADERS
+    assert first.kwargs["cookie_jar"] is api.cookies
+    assert second.kwargs["cookie_jar"] is api.cookies
+
+
+def test_api_headers_look_like_the_new_site_frontend():
+    assert API_REQUEST_HEADERS["Origin"] == "https://new.phhc.gov.in"
+    assert API_REQUEST_HEADERS["Referer"] == "https://new.phhc.gov.in/"
+    assert API_REQUEST_HEADERS["Sec-Fetch-Mode"] == "cors"
+    assert API_REQUEST_HEADERS["Sec-Fetch-Site"] == "same-site"
+    assert API_REQUEST_HEADERS["Accept"].startswith("application/json")
+    assert API_REQUEST_HEADERS["User-Agent"] == REQUEST_HEADERS["User-Agent"]
+    assert "Upgrade-Insecure-Requests" not in API_REQUEST_HEADERS

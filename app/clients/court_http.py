@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 import certifi
 import requests
 from requests.adapters import HTTPAdapter
+from requests.cookies import RequestsCookieJar
 from urllib3.exceptions import IncompleteRead
 from urllib3.util.retry import Retry
 
@@ -45,14 +46,26 @@ class CourtHttpClient:
         session.verify = certifi.where()
         return session
 
-    def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
-        """Send a request; return the 2xx response or raise CourtSiteError."""
+    def request(
+        self,
+        method: str,
+        url: str,
+        cookie_jar: Optional[RequestsCookieJar] = None,
+        **kwargs: Any,
+    ) -> requests.Response:
+        """Send a request; return the 2xx response or raise CourtSiteError.
+
+        Pass `cookie_jar` to keep cookies across requests like a browser does
+        (cookies the server sets are stored back into the jar).
+        """
         kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
         kwargs.setdefault("headers", self.headers)
 
         for attempt in range(1, CONNECTION_ATTEMPTS + 1):
             try:
                 with self._create_session() as session:
+                    if cookie_jar is not None:
+                        session.cookies = cookie_jar
                     response = session.request(method.upper(), url, **kwargs)
                     response.raise_for_status()
                     return response
