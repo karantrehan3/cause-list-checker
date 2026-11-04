@@ -22,7 +22,7 @@ def world():
         patch("app.services.emailer.smtplib.SMTP", world.smtp_factory()),
         patch.object(socket.socket, "connect", block_sockets),
         patch("app.managers.pdf_searcher.time.sleep"),
-        patch("app.managers.court_http.time.sleep"),
+        patch("app.clients.court_http.time.sleep"),
     ):
         yield world
     pdf_tracker.clear_existing_pdfs()

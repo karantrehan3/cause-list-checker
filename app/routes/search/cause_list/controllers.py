@@ -7,9 +7,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from app.config import settings
+from app.managers.case_manager import CaseManager
+from app.managers.cause_list_manager import CauseListManager
 from app.managers.pdf_searcher import PDFSearcher
 from app.managers.queue import queue_manager
-from app.managers.scraper import Scraper
 from app.services.emailer import Emailer
 from app.services.emailer.report import build_report
 from app.utils.error_handler import ErrorHandler
@@ -91,7 +92,8 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
     Returns:
         True if successful, False if failed after max attempts
     """
-    scraper = Scraper()
+    cause_list_manager = CauseListManager()
+    case_manager = CaseManager(cause_list_manager.api)
     searcher = PDFSearcher(search_terms=queued_search.search_terms)
     emailer = Emailer()
     error_handler = ErrorHandler(emailer, queued_search.recipient_emails)
@@ -100,12 +102,12 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
         # Step 1 & 2: Cause lists and case checks in parallel
         cause_lists, case_lookup = await asyncio.gather(
             asyncio.to_thread(
-                scraper.fetch_cause_lists,
+                cause_list_manager.fetch,
                 queued_search.date,
                 queued_search.search_terms,
             ),
             asyncio.to_thread(
-                scraper.lookup_case,
+                case_manager.lookup,
                 queued_search.case_details,
                 queued_search.search_terms,
                 queued_search.date,

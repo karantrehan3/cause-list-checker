@@ -8,15 +8,15 @@ from datetime import date, timedelta
 import pytest
 import requests
 
+from app.clients.court_http import CourtHttpClient
+from app.clients.phhc_api import PhhcApi
 from app.config import REQUEST_HEADERS
-from app.managers.cause_list_sources import CauseListFetcher
-from app.managers.court_http import CourtHttpClient
-from app.managers.judge_cause_list import (
+from app.managers.cause_list_manager import CauseListManager
+from app.managers.judge_cause_list_manager import (
     match_judge_code,
     search_entries,
     unwrap_records,
 )
-from app.managers.phhc_api import PhhcApi
 
 pytestmark = pytest.mark.live
 
@@ -50,7 +50,7 @@ def _assert_pdf(url):
 
 
 def test_both_sources_serve_real_pdfs(api):
-    fetcher = CauseListFetcher(CourtHttpClient(), api)
+    fetcher = CauseListManager(CourtHttpClient(), api)
     for day in _upcoming_dates():
         old, new = fetcher.fetch_old_site(day), fetcher.fetch_new_site(day)
         if old and new:

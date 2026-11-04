@@ -7,15 +7,15 @@ Both are searched in full and shown separately in the email.
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
+from app.clients.court_http import CourtHttpClient, CourtSiteError
+from app.clients.phhc_api import PhhcApi
 from app.config import settings
-from app.managers.court_http import CourtHttpClient, CourtSiteError
 from app.managers.pdf_tracker import pdf_tracker
-from app.managers.phhc_api import PhhcApi
 
 OLD_SOURCE = "highcourtchd.gov.in"
 NEW_SOURCE = "new.phhc.gov.in"
@@ -43,10 +43,14 @@ class CauseListResult:
         return self.existing_pdfs + self.new_pdfs
 
 
-class CauseListFetcher:
-    def __init__(self, client: CourtHttpClient, api: PhhcApi):
-        self.client = client
-        self.api = api
+class CauseListManager:
+    def __init__(
+        self,
+        client: Optional[CourtHttpClient] = None,
+        api: Optional[PhhcApi] = None,
+    ):
+        self.client = client or CourtHttpClient()
+        self.api = api or PhhcApi(self.client)
 
     def fetch(self, date: str, search_terms: List[str]) -> CauseListResult:
         """

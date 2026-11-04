@@ -7,8 +7,8 @@ whether a failure is fatal or should be reported as an incomplete check.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from app.clients.court_http import SLOW_TIMEOUT, CourtHttpClient, CourtSiteError
 from app.config import settings
-from app.managers.court_http import SLOW_TIMEOUT, CourtHttpClient, CourtSiteError
 
 
 def to_api_date(date: str) -> str:
@@ -17,8 +17,12 @@ def to_api_date(date: str) -> str:
 
 
 class PhhcApi:
-    def __init__(self, client: CourtHttpClient, base_url: Optional[str] = None):
-        self.client = client
+    def __init__(
+        self,
+        client: Optional[CourtHttpClient] = None,
+        base_url: Optional[str] = None,
+    ):
+        self.client = client or CourtHttpClient()
         self.base_url = base_url or settings.PHHC_API_BASE_URL
 
     def _get(

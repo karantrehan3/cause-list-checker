@@ -1,7 +1,7 @@
 import pytest
 
-from app.managers.case_lookup import CaseLookupResult
-from app.managers.cause_list_sources import NEW_SOURCE, OLD_SOURCE, CauseListResult
+from app.managers.case_manager import CaseLookupResult
+from app.managers.cause_list_manager import NEW_SOURCE, OLD_SOURCE, CauseListResult
 from app.services.emailer.report import (
     FAILED_PREFIX,
     INCOMPLETE_PREFIX,

@@ -1,13 +1,13 @@
 import pytest
 
-from app.managers.case_lookup import (
+from app.clients.court_http import CourtSiteError
+from app.managers.case_manager import CaseManager
+from app.managers.judge_cause_list_manager import (
     FOUND,
     NOT_FOUND,
     UNAVAILABLE,
-    CaseLookup,
     JudgeListOutcome,
 )
-from app.managers.court_http import CourtSiteError
 from tests.fakes import CASE, ENTRY, OTHER, FakeApi, wrapped
 
 TERMS = ["CR-2227-2010"]
@@ -15,7 +15,7 @@ DATE = "05/11/2026"
 
 
 def run(api: FakeApi, date: str = DATE):
-    return CaseLookup(api).run(CASE, TERMS, date)
+    return CaseManager(api).lookup(CASE, TERMS, date)
 
 
 def test_found_in_daily_list_and_case_status_built():
@@ -231,3 +231,7 @@ def test_regular_list_failure_without_listing_stays_unavailable():
     api = FakeApi(regular_cause_list=CourtSiteError("HTTP 504 Gateway Timeout"))
 
     assert run(api).regular.status == UNAVAILABLE
+
+
+def test_lookup_skipped_without_case_details():
+    assert CaseManager(FakeApi()).lookup(None, TERMS, DATE) is None

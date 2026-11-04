@@ -3,8 +3,8 @@
 from typing import Any, Dict, List, Optional
 
 from app.config import settings
-from app.managers.case_lookup import CaseLookupResult
-from app.managers.cause_list_sources import CauseListResult, cause_list_sources
+from app.managers.case_manager import CaseLookupResult
+from app.managers.cause_list_manager import CauseListResult, cause_list_sources
 
 INCOMPLETE_PREFIX = "⚠️ INCOMPLETE – "
 FAILED_PREFIX = "❌ SEARCH FAILED – "

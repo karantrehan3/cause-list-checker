@@ -1,6 +1,6 @@
 import pytest
 
-from app.managers import case_html
+from app.services.emailer import case_html
 from tests.fakes import ENTRY
 
 

@@ -3,7 +3,7 @@
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
-from app.managers.court_http import CourtSiteError
+from app.clients.court_http import CourtSiteError
 
 CASE = {"type": "CR", "no": "2227", "year": "2010"}
 BENCH = "HON'BLE MR. JUSTICE VIKAS SURI"

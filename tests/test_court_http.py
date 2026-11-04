@@ -3,13 +3,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from app.config import REQUEST_HEADERS
-from app.managers.court_http import (
+from app.clients.court_http import (
     CONNECTION_ATTEMPTS,
     DEFAULT_TIMEOUT,
     CourtHttpClient,
     CourtSiteError,
 )
+from app.config import REQUEST_HEADERS
 
 
 def _session_returning(*outcomes):
@@ -61,7 +61,7 @@ def test_http_error_becomes_readable_reason_with_diagnostics(client, capsys):
     with (
         patch.object(CourtHttpClient, "_create_session", return_value=session),
         patch(
-            "app.managers.court_http.describe_failed_response",
+            "app.clients.court_http.describe_failed_response",
             return_value="  status: 403",
         ),
     ):
@@ -77,7 +77,7 @@ def test_connection_errors_are_retried_then_reported(client):
     session = _session_returning(*failures)
     with (
         patch.object(CourtHttpClient, "_create_session", return_value=session),
-        patch("app.managers.court_http.time.sleep") as sleep,
+        patch("app.clients.court_http.time.sleep") as sleep,
     ):
         with pytest.raises(CourtSiteError, match="connection failed"):
             client.request("GET", "https://court/x")
@@ -91,7 +91,7 @@ def test_connection_error_then_success_returns_response(client):
     session = _session_returning(requests.exceptions.ConnectionError("reset"), good)
     with (
         patch.object(CourtHttpClient, "_create_session", return_value=session),
-        patch("app.managers.court_http.time.sleep"),
+        patch("app.clients.court_http.time.sleep"),
     ):
         assert client.request("GET", "https://court/x") is good
 

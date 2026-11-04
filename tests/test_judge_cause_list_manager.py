@@ -1,6 +1,6 @@
 import pytest
 
-from app.managers.judge_cause_list import (
+from app.managers.judge_cause_list_manager import (
     entry_search_text,
     judge_code_for_bench,
     match_judge_code,
@@ -113,3 +113,17 @@ def test_search_matches_connected_cases(term):
 def test_search_no_match_and_blank_terms():
     assert search_entries([OTHER, ENTRY], ["CR-9999-2000"]) == []
     assert search_entries([OTHER, ENTRY], ["", None]) == []
+
+
+def test_manager_unavailable_reports_one_issue_per_case():
+    from app.managers.judge_cause_list_manager import JudgeCauseListManager
+
+    result = JudgeCauseListManager.unavailable(
+        "judge list unavailable (timed out)",
+        {"case_type": "CR", "case_no": "2227", "case_year": 2010},
+    )
+
+    assert result.daily.status == result.regular.status == "unavailable"
+    assert result.issues == [
+        "Judge-wise cause lists for CR-2227-2010: judge list unavailable (timed out)"
+    ]

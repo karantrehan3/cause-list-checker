@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.managers.court_http import SLOW_TIMEOUT, CourtSiteError
-from app.managers.phhc_api import PhhcApi, to_api_date
+from app.clients.court_http import SLOW_TIMEOUT, CourtSiteError
+from app.clients.phhc_api import PhhcApi, to_api_date
 
 BASE = "https://api.court"
 

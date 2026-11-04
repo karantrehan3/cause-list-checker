@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.managers.cause_list_sources import NEW_SOURCE, OLD_SOURCE
+from app.managers.cause_list_manager import NEW_SOURCE, OLD_SOURCE
 from tests.e2e.conftest import RECIPIENT
 
 SEARCH_URL = "/search/cause-list/"

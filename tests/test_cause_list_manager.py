@@ -2,15 +2,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.managers.cause_list_sources import (
+from app.clients.court_http import CourtSiteError
+from app.clients.phhc_api import PhhcApi
+from app.managers.cause_list_manager import (
     NEW_SOURCE,
     OLD_SOURCE,
-    CauseListFetcher,
+    CauseListManager,
     CauseListResult,
     cause_list_sources,
 )
-from app.managers.court_http import CourtSiteError
-from app.managers.phhc_api import PhhcApi
 
 OLD_SITE_HTML = """
 <table id="tables11">
@@ -54,12 +54,12 @@ def api():
 
 @pytest.fixture
 def fetcher(client, api):
-    return CauseListFetcher(client, api)
+    return CauseListManager(client, api)
 
 
 @pytest.fixture
 def tracker():
-    with patch("app.managers.cause_list_sources.pdf_tracker") as tracker:
+    with patch("app.managers.cause_list_manager.pdf_tracker") as tracker:
         tracker.separate_existing_and_new_pdfs.side_effect = lambda pdfs, terms: (
             [],
             pdfs,

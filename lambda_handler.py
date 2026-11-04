@@ -24,8 +24,9 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 from app.config import settings
+from app.managers.case_manager import CaseManager
+from app.managers.cause_list_manager import CauseListManager
 from app.managers.pdf_searcher import PDFSearcher
-from app.managers.scraper import Scraper
 from app.services.emailer import Emailer
 from app.services.emailer.report import build_report
 from app.utils.error_handler import ErrorHandler
@@ -53,7 +54,8 @@ def _redact_email(email: str) -> str:
 
 
 def process_date(
-    scraper,
+    cause_list_manager,
+    case_manager,
     searcher,
     emailer,
     error_handler,
@@ -63,8 +65,8 @@ def process_date(
     case_details,
 ):
     try:
-        cause_lists = scraper.fetch_cause_lists(date, search_terms)
-        case_lookup = scraper.lookup_case(case_details, search_terms, date)
+        cause_lists = cause_list_manager.fetch(date, search_terms)
+        case_lookup = case_manager.lookup(case_details, search_terms, date)
 
         pdfs = cause_lists.pdfs
         if not pdfs:
@@ -118,7 +120,8 @@ def handler(event, context):
     print(f"Recipients: {[_redact_email(e) for e in recipients]}")
     print(f"Dates to process: {dates_to_process}")
 
-    scraper = Scraper()
+    cause_list_manager = CauseListManager()
+    case_manager = CaseManager(cause_list_manager.api)
     searcher = PDFSearcher(search_terms=search_terms)
     emailer = Emailer()
     error_handler = ErrorHandler(emailer, recipients)
@@ -126,7 +129,8 @@ def handler(event, context):
     results_summary = []
     for date in dates_to_process:
         success = process_date(
-            scraper,
+            cause_list_manager,
+            case_manager,
             searcher,
             emailer,
             error_handler,
