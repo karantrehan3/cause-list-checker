@@ -125,14 +125,18 @@ class CaseLookup:
             date,
             result,
         )
-        if (
-            result.regular.status == NOT_FOUND
-            and not result.regular.entries_checked
-            and listing_entry
-        ):
-            # No regular list published for the bench, but the case's own history says it's listed.
-            result.regular.html = case_html.build_listing_found_html(
-                listing_entry, bench_name, date
+        regular_list_missing = result.regular.status == UNAVAILABLE or (
+            result.regular.status == NOT_FOUND and not result.regular.entries_checked
+        )
+        if listing_entry and regular_list_missing:
+            # The regular list is unavailable or unpublished, but the case's own listing
+            # history says it is listed on this date: show that. Any request failure
+            # stays in result.issues, so the email banner still reports it.
+            result.regular = JudgeListOutcome(
+                html=case_html.build_listing_found_html(
+                    listing_entry, bench_name, date
+                ),
+                bench_name=bench_name,
             )
         return result
 

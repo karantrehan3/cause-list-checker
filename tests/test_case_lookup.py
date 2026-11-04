@@ -200,3 +200,34 @@ def test_listing_history_for_other_dates_is_ignored():
 )
 def test_outcome_status(outcome, status):
     assert outcome.status == status
+
+
+def test_regular_list_failure_still_shows_listing_history_and_reports_issue():
+    listing = [
+        {
+            "cl_date": "2026-11-05T00:00:00",
+            "cl_type": "REGULAR",
+            "sr_no": 583,
+            "bench_code": 4485,
+            "benchDetails": {"bench_name": "HON'BLE MR. JUSTICE VIKAS SURI"},
+        }
+    ]
+    api = FakeApi(
+        listing_history=listing,
+        regular_cause_list=CourtSiteError("HTTP 504 Gateway Timeout"),
+    )
+
+    result = run(api)
+
+    assert result.regular.status == FOUND
+    assert "583" in result.regular.html
+    assert (
+        "Judge-wise regular cause list for HON'BLE MR. JUSTICE VIKAS SURI: "
+        "HTTP 504 Gateway Timeout" in result.issues
+    )
+
+
+def test_regular_list_failure_without_listing_stays_unavailable():
+    api = FakeApi(regular_cause_list=CourtSiteError("HTTP 504 Gateway Timeout"))
+
+    assert run(api).regular.status == UNAVAILABLE
