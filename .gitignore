@@ -180,3 +180,5 @@ cron.sh
 # Lambda build artifacts
 lambda_build/
 lambda_deployment.zip
+# Python 3.13 env matching the Lambda runtime
+.venv-lambda/
