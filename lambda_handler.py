@@ -27,6 +27,7 @@ from app.config import settings
 from app.managers.pdf_searcher import PDFSearcher
 from app.managers.scraper import Scraper
 from app.services.emailer import Emailer
+from app.services.emailer.report import build_report
 from app.utils.error_handler import ErrorHandler
 from app.utils.helpers import get_weekend_dates
 
@@ -40,44 +41,32 @@ def _redact_email(email: str) -> str:
         return "***"
     local = parts[0]
     domain = parts[1]
-    local_redacted = local[:2] + "*" * max(len(local) - 3, 1) + local[-1] if len(local) > 3 else local[0] + "***"
-    domain_redacted = domain[:2] + "***" + domain[-3:] if len(domain) > 5 else domain[0] + "***"
+    local_redacted = (
+        local[:2] + "*" * max(len(local) - 3, 1) + local[-1]
+        if len(local) > 3
+        else local[0] + "***"
+    )
+    domain_redacted = (
+        domain[:2] + "***" + domain[-3:] if len(domain) > 5 else domain[0] + "***"
+    )
     return f"{local_redacted}@{domain_redacted}"
 
 
-def _build_context(
-    search_terms, date, existing_pdfs, new_pdfs, results,
-    case_details_html, term_found_in_regular_cause_list, case_status_url,
+def process_date(
+    scraper,
+    searcher,
+    emailer,
+    error_handler,
+    search_terms,
+    date,
+    recipients,
+    case_details,
 ):
-    all_pdfs = existing_pdfs + new_pdfs
-    return {
-        "search_terms": search_terms,
-        "date": date,
-        "results": results,
-        "pdfs": all_pdfs,
-        "existing_pdfs": existing_pdfs,
-        "new_pdfs": new_pdfs,
-        "case_details_html": case_details_html,
-        "term_found_in_regular_cause_list": term_found_in_regular_cause_list,
-        "urls": {
-            "cl_base_url": settings.CL_BASE_URL,
-            "case_search_url": settings.CASE_SEARCH_URL,
-            "cl_judge_wise_regular_url": settings.CL_JUDGE_WISE_REGULAR_URL,
-            "case_status_url": case_status_url or settings.CASE_SEARCH_URL,
-        },
-    }
-
-
-def process_date(scraper, searcher, emailer, error_handler, search_terms, date, recipients, case_details):
     try:
-        existing_pdfs, new_pdfs = scraper.parse_table_and_download_pdfs(date, search_terms)
-        pdfs = existing_pdfs + new_pdfs
+        cause_lists = scraper.fetch_cause_lists(date, search_terms)
+        case_lookup = scraper.lookup_case(case_details, search_terms, date)
 
-        case_result = scraper.get_case_details_and_judge_details(case_details, search_terms, date)
-        case_details_html, term_found_in_regular_cause_list, case_status_url = (
-            case_result if case_result is not None else (None, "", "")
-        )
-
+        pdfs = cause_lists.pdfs
         if not pdfs:
             results = []
             print(f"ALERT! No Cause Lists found for {date}")
@@ -86,15 +75,14 @@ def process_date(scraper, searcher, emailer, error_handler, search_terms, date, 
             results = searcher.search_pdf(pdfs)
             print(f"PROGRESS! Search complete for {date}: {len(results)} result(s)")
 
-        context = _build_context(
-            search_terms, date, existing_pdfs, new_pdfs, results,
-            case_details_html, term_found_in_regular_cause_list, case_status_url,
-        )
+        report = build_report(search_terms, date, cause_lists, results, case_lookup)
+        for issue in report["context"]["issues"]:
+            print(f"ISSUE! {date}: {issue}")
         emailer.send_email(
             recipients=recipients,
-            subject=f"Cause List Search Results for {search_terms} on {date}",
+            subject=report["subject"],
             template_name="cause_list_template.html",
-            context=context,
+            context=report["context"],
         )
         print(f"SUCCESS! Email sent for {date}")
         return True
@@ -120,7 +108,9 @@ def handler(event, context):
     case_details = detail.get("case_details")
     recipients = detail.get("recipient_emails") or settings.EMAIL_RECIPIENTS.split(",")
 
-    target_date = detail.get("date") or (datetime.now(IST) + timedelta(days=1)).strftime("%d/%m/%Y")
+    target_date = detail.get("date") or (
+        datetime.now(IST) + timedelta(days=1)
+    ).strftime("%d/%m/%Y")
     dates_to_process = get_weekend_dates(target_date)
 
     print(f"Search terms: {search_terms}")
@@ -136,15 +126,23 @@ def handler(event, context):
     results_summary = []
     for date in dates_to_process:
         success = process_date(
-            scraper, searcher, emailer, error_handler,
-            search_terms, date, recipients, case_details,
+            scraper,
+            searcher,
+            emailer,
+            error_handler,
+            search_terms,
+            date,
+            recipients,
+            case_details,
         )
         results_summary.append({"date": date, "success": success})
 
     return {
         "statusCode": 200,
-        "body": json.dumps({
-            "message": f"Processed {len(dates_to_process)} date(s)",
-            "results": results_summary,
-        }),
+        "body": json.dumps(
+            {
+                "message": f"Processed {len(dates_to_process)} date(s)",
+                "results": results_summary,
+            }
+        ),
     }

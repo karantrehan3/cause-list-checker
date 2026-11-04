@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     CL_BASE_URL: str
     CL_FORM_ACTION_URL: str
     CL_JUDGE_WISE_REGULAR_URL: str
+    CL_JUDGE_WISE_URL: str = "https://new.phhc.gov.in/cause/cause-list"
+    CL_DAILY_URL: str = "https://new.phhc.gov.in/cause/daily-cause-list"
     EMAIL_RECIPIENTS: str
     PHHC_API_BASE_URL: str
     SENDER_EMAIL: str
@@ -20,3 +22,20 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Shared by every outbound request to the court sites (cause-list page, PDFs, APIs).
+# Mirrors what desktop Chrome sends when opening a cause-list PDF link, so the
+# court's server treats us like a normal browser. Accept-Encoding is left to
+# `requests` (it can't decode brotli/zstd without extra packages).
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "application/pdf,application/json,*/*;q=0.8"
+    ),
+    "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
+    "Upgrade-Insecure-Requests": "1",
+}

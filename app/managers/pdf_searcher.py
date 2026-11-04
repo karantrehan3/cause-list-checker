@@ -7,6 +7,9 @@ from typing import Any, Dict, List, Optional
 import fitz
 import requests
 
+from app.config import REQUEST_HEADERS
+from app.utils.http_debug import describe_failed_response
+
 
 class PDFSearcher:
     def __init__(self, search_terms: List[str]) -> None:
@@ -21,18 +24,30 @@ class PDFSearcher:
 
         try:
             # Fetch the PDF content with timeout
-            response = requests.get(pdf_url, timeout=(10, 30))
+            response = requests.get(pdf_url, headers=REQUEST_HEADERS, timeout=(10, 30))
 
-            # Log the headers of the response
             if response.status_code != 200:
                 print(
-                    f"Failed to fetch PDF {pdf_name}: HTTP {response.status_code}",
+                    f"Failed to fetch PDF {pdf_name}: HTTP {response.status_code}\n"
+                    f"{describe_failed_response(response)}",
                     flush=True,
                 )
+                pdf["error"] = f"HTTP {response.status_code}"
+                return None
+
+            invalid_reason = self._invalid_pdf_reason(response)
+            if invalid_reason:
+                print(
+                    f"Downloaded file for {pdf_name} is not a usable PDF: {invalid_reason}\n"
+                    f"{describe_failed_response(response)}",
+                    flush=True,
+                )
+                pdf["error"] = invalid_reason
                 return None
 
             found_pages = {term: [] for term in self.search_terms}
             num_pages = 0
+            pages_with_text = 0
             # Read the PDF from memory
             try:
                 with BytesIO(response.content) as pdf_file:
@@ -43,7 +58,8 @@ class PDFSearcher:
                             try:
                                 page = document.load_page(page_num)
                                 text = page.get_text()
-                                if text:
+                                if text.strip():
+                                    pages_with_text += 1
                                     for term in self.search_terms:
                                         if term.lower() in text.lower():
                                             found_pages[term].append(
@@ -58,12 +74,29 @@ class PDFSearcher:
 
                 response.close()
 
+                if num_pages == 0 or pages_with_text == 0:
+                    reason = (
+                        "PDF has no pages"
+                        if num_pages == 0
+                        else f"no searchable text in {num_pages} pages (scanned?)"
+                    )
+                    print(f"Cannot search {pdf_name}: {reason}", flush=True)
+                    pdf["error"] = reason
+                    return None
+
                 pdf["num_pages"] = num_pages
+                print(
+                    f"PDF OK {pdf_name} [{pdf.get('source', '')}]: "
+                    f"{len(response.content)} bytes, {num_pages} pages, "
+                    f"{pages_with_text} with text",
+                    flush=True,
+                )
 
                 if any(found_pages.values()):
                     return {
                         "pdf_name": pdf_name,
                         "pdf_url": pdf_url,
+                        "source": pdf.get("source", ""),
                         "found_pages": found_pages,
                         "num_pages": num_pages,
                     }
@@ -79,19 +112,33 @@ class PDFSearcher:
                     f"Error parsing PDF {pdf_name}: {pdf_error}",
                     flush=True,
                 )
+                pdf["error"] = f"could not parse PDF ({pdf_error.__class__.__name__})"
                 return None
         except requests.exceptions.RequestException as e:
             print(
                 f"Error fetching PDF {pdf_name} from {pdf_url}: {e}",
                 flush=True,
             )
+            pdf["error"] = f"download failed ({e.__class__.__name__})"
             return None
         except Exception as e:
             print(
                 f"Unexpected error processing PDF {pdf_name}: {e}",
                 flush=True,
             )
+            pdf["error"] = f"unexpected error ({e.__class__.__name__})"
             return None
+
+    @staticmethod
+    def _invalid_pdf_reason(response: requests.Response) -> Optional[str]:
+        """Return why a 200 response isn't a PDF (e.g. an HTML error page), else None."""
+        content = response.content or b""
+        if not content:
+            return "empty response"
+        if not content.lstrip()[:5] == b"%PDF-":
+            content_type = response.headers.get("Content-Type", "unknown")
+            return f"not a PDF (Content-Type: {content_type})"
+        return None
 
     def search_pdf(self, pdfs: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         results = []
