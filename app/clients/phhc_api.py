@@ -102,6 +102,15 @@ class PhhcApi:
             timeout=SLOW_TIMEOUT,
         )
 
+    def latest_regular_list_date(self) -> str:
+        """Date of the most recent regular cause list, as DD/MM/YYYY."""
+        data = self._get("/cis_filing/public/get-latest-regular-causelist-date")
+        raw = str((data or {}).get("cl_date", ""))[:10]
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError as e:
+            raise CourtSiteError("no latest regular cause list date") from e
+
     def regular_cause_list(self, judge_code: int, date: str) -> Any:
         """Raw getRegularCauseList response."""
         return self._get(

@@ -85,6 +85,9 @@ def default_routes() -> Dict[str, Route]:
         "/cis/judges/active-bench": _json(JUDGES),
         "/cis_filing/public/getCauseList": _json(wrapped(OTHER, ENTRY)),
         "/cis_filing/public/getRegularCauseList": _json([]),
+        "/cis_filing/public/get-latest-regular-causelist-date": _json(
+            {"cl_date": "2026-07-01T00:00:00"}
+        ),
         "checkip.amazonaws.com": (200, "127.0.0.1", {"Content-Type": "text/plain"}),
     }
 

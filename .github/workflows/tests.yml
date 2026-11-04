@@ -1,10 +1,13 @@
 name: Tests
 
+# Only when code changes. Live court-site checks run daily from AWS instead
+# (Lambda "healthcheck" mode), on the same network and runtime as production.
 on:
+  pull_request:
+    branches: [master]
   push:
+    branches: [master]
   workflow_dispatch:
-  schedule:
-    - cron: "30 2 * * *" # daily 08:00 IST (02:30 UTC)
 
 permissions:
   contents: read
@@ -43,31 +46,3 @@ jobs:
       # Fake court sites + captured SMTP + blocked sockets: nothing real is called or sent.
       - name: Run tests
         run: pytest tests -q -p no:cacheprovider --cov=app --cov=lambda_handler --cov-report=term-missing --cov-fail-under=90
-
-  live-court-sites:
-    name: Live court-site checks
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: |
-            requirements-lambda.txt
-            requirements-dev.txt
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-lambda.txt -r requirements-dev.txt $API_TEST_DEPS
-
-      # Read-only requests to the court websites; no email is sent. A failure here
-      # usually means the court changed its site (endpoints, response shape, blocking).
-      - name: Run live checks
-        env:
-          RUN_LIVE: "1"
-        run: pytest tests -m live -q -p no:cacheprovider -rs

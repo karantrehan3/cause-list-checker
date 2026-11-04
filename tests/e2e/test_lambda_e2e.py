@@ -4,6 +4,7 @@ import json
 
 import lambda_handler
 from tests.e2e.conftest import RECIPIENT
+from tests.fakes import ENTRY, wrapped
 
 DETAIL = {
     "search_terms": ["CR-2227-2010"],
@@ -48,3 +49,70 @@ def test_missing_search_terms_is_400_and_sends_nothing(world):
 
     assert response["statusCode"] == 400
     assert world.sent_emails == [] and world.requests_seen == []
+
+
+# --- Daily health check mode -------------------------------------------------------
+
+HEALTH = {
+    "mode": "healthcheck",
+    "recipient_emails": [RECIPIENT],
+    "case_details": {"type": "CR", "no": "2227", "year": "2010"},
+}
+
+
+def test_healthcheck_runs_all_checks_and_emails_report_only(world):
+    world.route(
+        "/cis_filing/public/getRegularCauseList",
+        200,
+        wrapped(ENTRY),
+        {"Content-Type": "application/json"},
+    )
+
+    response = lambda_handler.handler({"detail": HEALTH}, None)
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"]) == {
+        "healthy": True,
+        "failed": [],
+        "warnings": [],
+    }
+    sent = world.only_email()
+    assert sent.recipients == [RECIPIENT]
+    assert sent.subject.startswith("✅ Cause List Checker health: all 6 checks OK")
+    assert "Daily Health Report" in sent.html
+    assert sent.html.count("✅ OK") == 6
+    # Read-only: it downloads PDFs and queries APIs, but never runs a search email.
+    assert world.requested(r"show_cause_list\.php")
+    assert world.requested(r"daily-causelist-pdf/\d{4}-\d{2}-\d{2}/O/M")
+    assert world.requested(r"getCase\?")
+
+
+def test_healthcheck_reports_blocked_dependencies(world):
+    world.block("show_cause_list.php")
+    world.block("/cis_filing/public/getCase")
+
+    response = lambda_handler.handler({"detail": HEALTH}, None)
+
+    body = json.loads(response["body"])
+    assert body["healthy"] is False
+    assert body["failed"] == ["Cause list PDFs (highcourtchd.gov.in)", "Case status"]
+    sent = world.only_email()
+    assert sent.subject.startswith("❌ Cause List Checker health: 2 of 6 checks failed")
+    assert "HTTP 403 Forbidden" in sent.html
+
+
+def test_healthcheck_without_recipients_goes_to_sender_only(world):
+    from app.config import settings
+
+    lambda_handler.handler({"detail": {"mode": "healthcheck"}}, None)
+
+    assert world.only_email().recipients == [settings.SENDER_EMAIL]
+
+
+def test_healthcheck_with_no_regular_list_is_a_warning(world):
+    response = lambda_handler.handler({"detail": HEALTH}, None)
+
+    assert json.loads(response["body"])["warnings"] == ["Judge-wise regular cause list"]
+    assert world.only_email().subject.startswith(
+        "⚠️ Cause List Checker health: OK with 1 warning(s)"
+    )
