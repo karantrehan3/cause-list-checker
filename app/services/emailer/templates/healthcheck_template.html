@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cause List Checker Health</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #222;
+      }
+      .container {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .timestamp {
+        color: #666;
+        font-size: 12px;
+        text-align: center;
+      }
+      h1 {
+        text-align: center;
+        font-size: 24px;
+        margin: 8px 0 16px;
+      }
+      .summary {
+        border-radius: 6px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        font-size: 16px;
+        font-weight: bold;
+        text-align: center;
+      }
+      .summary.ok { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+      .summary.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+      .summary.failed { background: #fdecea; color: #7b241c; border: 2px solid #c0392b; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 18px;
+      }
+      th, td {
+        border: 1px solid #ddd;
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+        font-size: 14px;
+      }
+      th { background: #1a2a4a; color: #fff; }
+      tr.failed td { background: #fdecea; }
+      tr.warning td { background: #fffaf0; }
+      .status { white-space: nowrap; font-weight: bold; }
+      .time { white-space: nowrap; color: #666; text-align: right; }
+      .meta td { font-size: 13px; color: #444; }
+      .footnote { font-size: 12px; color: #666; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <p class="timestamp">Report generated at {{ report.generated_at }}</p>
+      <h1>Cause List Checker &mdash; Daily Health Report</h1>
+
+      {% if report.failed %}
+      <div class="summary failed">
+        ❌ {{ report.failed | length }} of {{ report.checks | length }} checks failed.
+        Searches that depend on these will report them as issues.
+      </div>
+      {% elif report.warnings %}
+      <div class="summary warning">
+        ⚠️ Everything reachable, with {{ report.warnings | length }} warning(s).
+      </div>
+      {% else %}
+      <div class="summary ok">
+        ✅ All {{ report.checks | length }} checks passed. Searches are working end to end.
+      </div>
+      {% endif %}
+
+      <table>
+        <thead>
+          <tr><th>Check</th><th>Status</th><th>Details</th><th>Time</th></tr>
+        </thead>
+        <tbody>
+          {% for check in report.checks %}
+          <tr class="{{ check.status }}">
+            <td>{{ check.name }}</td>
+            <td class="status">
+              {% if check.status == "ok" %}✅ OK{% elif check.status == "warning" %}⚠️ Warning{% else %}❌ Failed{% endif %}
+            </td>
+            <td>{{ check.detail }}</td>
+            <td class="time">{{ check.duration_ms }} ms</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <table class="meta">
+        <tr><td>Runs from</td><td>{{ report.region }} &middot; egress IP {{ report.egress_ip }} &middot; {{ report.runtime }}</td></tr>
+      </table>
+
+      <p class="footnote">
+        Read-only checks against the court websites, run from the same AWS network and
+        runtime as the scheduled searches. "Warning" means reachable but nothing to verify
+        (for example, no lists published yet). This email itself confirms email delivery works.
+      </p>
+    </div>
+  </body>
+</html>
