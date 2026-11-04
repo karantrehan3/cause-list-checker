@@ -7,10 +7,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from app.config import settings
+from app.managers.case_manager import CaseManager
+from app.managers.cause_list_manager import CauseListManager
 from app.managers.pdf_searcher import PDFSearcher
 from app.managers.queue import queue_manager
-from app.managers.scraper import Scraper
 from app.services.emailer import Emailer
+from app.services.emailer.report import build_report
 from app.utils.error_handler import ErrorHandler
 from app.utils.helpers import get_weekend_dates
 
@@ -90,59 +92,33 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
     Returns:
         True if successful, False if failed after max attempts
     """
-    scraper = Scraper()
+    cause_list_manager = CauseListManager()
+    case_manager = CaseManager(cause_list_manager.api)
     searcher = PDFSearcher(search_terms=queued_search.search_terms)
     emailer = Emailer()
     error_handler = ErrorHandler(emailer, queued_search.recipient_emails)
 
     try:
-        # Step 1 & 2: Scrape the page and get PDF links & Case details in parallel
-        pdf_result, case_result = await asyncio.gather(
+        # Step 1 & 2: Cause lists and case checks in parallel
+        cause_lists, case_lookup = await asyncio.gather(
             asyncio.to_thread(
-                scraper.parse_table_and_download_pdfs,
+                cause_list_manager.fetch,
                 queued_search.date,
                 queued_search.search_terms,
             ),
             asyncio.to_thread(
-                scraper.get_case_details_and_judge_details,
+                case_manager.lookup,
                 queued_search.case_details,
                 queued_search.search_terms,
                 queued_search.date,
             ),
         )
 
-        # Unpack the PDF results
-        existing_pdfs, new_pdfs = pdf_result
-        pdfs = existing_pdfs + new_pdfs  # Combined list for backward compatibility
-
-        case_details_html, term_found_in_regular_cause_list, case_status_url = (
-            case_result if case_result is not None else (None, "", "")
-        )
-
-        if not pdfs:
-            send_email(
-                emailer,
-                queued_search.recipient_emails,
-                queued_search.search_terms,
-                queued_search.date,
-                existing_pdfs,
-                new_pdfs,
-                [],
-                case_details_html,
-                term_found_in_regular_cause_list,
-                case_status_url,
-            )
-            print(f"ALERT! No Cause Lists found for {queued_search.date}", flush=True)
-            return True
-
-        print(
-            f"PROGRESS! Cause Lists found for {queued_search.date}: ",
-            json.dumps(pdfs, indent=2),
-            flush=True,
-        )
-
         # Step 3: Search for the terms in the PDFs (run in separate thread)
-        results = await asyncio.to_thread(searcher.search_pdf, pdfs)
+        pdfs = cause_lists.pdfs
+        results = await asyncio.to_thread(searcher.search_pdf, pdfs) if pdfs else []
+        if not pdfs:
+            print(f"ALERT! No Cause Lists found for {queued_search.date}", flush=True)
 
         print(
             f"PROGRESS! Cause List Search Results for {queued_search.date}: ",
@@ -150,18 +126,17 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
             flush=True,
         )
 
-        # Step 4: If results found, send an email notification
-        send_email(
+        # Step 4: Email the report
+        send_report(
             emailer,
             queued_search.recipient_emails,
-            queued_search.search_terms,
-            queued_search.date,
-            existing_pdfs,
-            new_pdfs,
-            results,
-            case_details_html,
-            term_found_in_regular_cause_list,
-            case_status_url,
+            build_report(
+                queued_search.search_terms,
+                queued_search.date,
+                cause_lists,
+                results,
+                case_lookup,
+            ),
         )
 
         print(
@@ -182,43 +157,17 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
         return False
 
 
-def send_email(
-    emailer: Emailer,
-    email_list: List[str],
-    search_terms: str,
-    date: str,
-    existing_pdfs: List[Dict[str, str]],
-    new_pdfs: List[Dict[str, str]],
-    results: List[Dict[str, Any]],
-    case_details_html: Optional[str] = None,
-    term_found_in_regular_cause_list: Optional[str] = None,
-    case_status_url: Optional[str] = None,
+def send_report(
+    emailer: Emailer, email_list: List[str], report: Dict[str, Any]
 ) -> None:
-    # Combine existing and new PDFs for backward compatibility
-    all_pdfs = existing_pdfs + new_pdfs
-
-    context = {
-        "search_terms": search_terms,
-        "date": date,
-        "results": results,
-        "pdfs": all_pdfs,
-        "existing_pdfs": existing_pdfs,
-        "new_pdfs": new_pdfs,
-        "case_details_html": case_details_html,
-        "term_found_in_regular_cause_list": term_found_in_regular_cause_list,
-        "urls": {
-            "cl_base_url": settings.CL_BASE_URL,
-            "case_search_url": settings.CASE_SEARCH_URL,
-            "cl_judge_wise_regular_url": settings.CL_JUDGE_WISE_REGULAR_URL,
-            "case_status_url": case_status_url or settings.CASE_SEARCH_URL,
-        },
-    }
+    for issue in report["context"]["issues"]:
+        print(f"ISSUE! {issue}", flush=True)
     try:
         emailer.send_email(
             recipients=email_list,
-            subject=f"Cause List Search Results for {search_terms} on {date}",
+            subject=report["subject"],
             template_name="cause_list_template.html",
-            context=context,
+            context=report["context"],
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error sending email: {e}")

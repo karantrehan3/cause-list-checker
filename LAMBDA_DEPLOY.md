@@ -85,6 +85,31 @@ For each search configuration, create a schedule with:
 
 `recipient_emails` and `case_details` are optional. If `recipient_emails` is omitted, the `EMAIL_RECIPIENTS` env var is used.
 
+### 4b. Daily Health Check Schedule
+
+The same function has a read-only `healthcheck` mode that tests every court
+dependency live from AWS (both cause list sites + PDF download, judges list,
+case status, daily and regular judge-wise lists) and emails a health report.
+Search schedules are unaffected.
+
+Create one more schedule (same steps as above) with:
+
+- Cron: `cron(30 3 * * ? *)` (UTC) = **09:00 IST** daily
+- Payload:
+  ```json
+  {
+    "detail": {
+      "mode": "healthcheck",
+      "recipient_emails": ["<your email>"],
+      "case_details": {"type": "<case_type>", "no": "<case_no>", "year": "<case_year>"}
+    }
+  }
+  ```
+
+`recipient_emails` defaults to `SENDER_EMAIL` (never the search recipients).
+`case_details` is optional; without it the case-status and daily judge-list checks
+are skipped (shown as warnings). Subject starts with ✅ / ⚠️ / ❌.
+
 ### 5. Cron Schedule Reference
 
 Local crons run at :00 and :15 past hours 10,13-23 IST. IST = UTC+5:30:
