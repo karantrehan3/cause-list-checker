@@ -2,6 +2,7 @@ import pytest
 
 from app.clients.court_http import CourtSiteError
 from app.managers.case_manager import CaseManager
+from app.managers.cause_list_entries import ListedBench
 from app.managers.judge_cause_list_manager import (
     FOUND,
     NOT_FOUND,
@@ -159,6 +160,70 @@ def test_listing_bench_unresolvable_falls_back_to_current_bench():
     run(api)
 
     assert ("daily_cause_list", (650, DATE)) in api.calls
+
+
+PDF_BENCH = ListedBench(
+    name="HON'BLE MR. JUSTICE OTHER JUDGE",
+    source="Regular | Supplementary List p. 113",
+    is_regular_list=True,
+)
+
+
+def test_uses_bench_from_cause_list_pdf_when_listing_history_lacks_the_date():
+    api = FakeApi()
+
+    result = CaseManager(api).lookup(CASE, TERMS, DATE, listed_bench=PDF_BENCH)
+
+    assert ("daily_cause_list", (701, DATE)) in api.calls
+    assert result.daily.bench_name == "HON'BLE MR. JUSTICE OTHER JUDGE"
+    assert result.daily.bench_source == "Regular | Supplementary List p. 113"
+    assert result.regular.bench_source == "Regular | Supplementary List p. 113"
+
+
+def test_listing_history_bench_wins_over_pdf_bench():
+    listing = [
+        {
+            "cl_date": "2026-11-05",
+            "bench_code": 4485,
+            "benchDetails": {"bench_name": "HON'BLE MR. JUSTICE VIKAS SURI"},
+        }
+    ]
+    api = FakeApi(listing_history=listing)
+
+    result = CaseManager(api).lookup(CASE, TERMS, DATE, listed_bench=PDF_BENCH)
+
+    assert ("daily_cause_list", (650, DATE)) in api.calls
+    assert result.daily.bench_source == "case listing history"
+
+
+def test_regular_list_unpublished_but_case_printed_in_regular_pdf_shows_found():
+    api = FakeApi(regular_cause_list=[])
+
+    result = CaseManager(api).lookup(CASE, TERMS, DATE, listed_bench=PDF_BENCH)
+
+    assert result.regular.status == FOUND
+    assert "Regular | Supplementary List p. 113" in result.regular.html
+    assert "HON'BLE MR. JUSTICE OTHER JUDGE" in result.regular.html
+    assert result.regular.bench_source == "Regular | Supplementary List p. 113"
+
+
+def test_case_printed_in_non_regular_pdf_does_not_mark_regular_found():
+    api = FakeApi(regular_cause_list=[])
+    bench = ListedBench(name=PDF_BENCH.name, source="Ordinary | Main List p. 81")
+
+    result = CaseManager(api).lookup(CASE, TERMS, DATE, listed_bench=bench)
+
+    assert result.regular.status == NOT_FOUND
+
+
+def test_unmatchable_pdf_bench_falls_back_to_assigned_bench():
+    api = FakeApi()
+    bench = ListedBench(name="HON'BLE LOK ADALAT BENCH - 2", source="Lok Adalat p. 2")
+
+    result = CaseManager(api).lookup(CASE, TERMS, DATE, listed_bench=bench)
+
+    assert ("daily_cause_list", (650, DATE)) in api.calls
+    assert result.daily.bench_source == "case's assigned bench"
 
 
 def test_regular_list_missing_but_listing_history_says_listed_shows_fallback():

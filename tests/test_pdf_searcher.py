@@ -243,3 +243,40 @@ def test_unexpected_error_is_recorded():
         assert PDFSearcher(["x"]).fetch_and_search_pdf(pdf) is None
 
     assert pdf["error"] == "unexpected error (KeyError)"
+
+
+def _entry_pdf_bytes() -> bytes:
+    doc = fitz.open()
+    page = doc.new_page()
+    for x, y, text in [
+        (28, 100, "404 ** RSA-4610-2011"),
+        (57, 112, "SANGRUR"),
+        (168, 100, "KRISHAN CHAND V/S TARSEM CHAND"),
+        (362, 100, "ASHISH KASHYAP,"),
+        (362, 112, "BALDEV RAJ MAHAJAN"),
+    ]:
+        page.insert_text((x, y), text, fontsize=8)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def test_matched_entry_is_split_into_columns_from_the_pdf_layout():
+    with patch(
+        "app.managers.pdf_searcher.requests.get",
+        return_value=_response(200, _entry_pdf_bytes()),
+    ):
+        result = PDFSearcher(["RSA-4610-2011"]).fetch_and_search_pdf(dict(PDF))
+
+    assert result["matches"][0]["columns"] == {
+        "case": ["404 ** RSA-4610-2011", "SANGRUR"],
+        "parties": ["KRISHAN CHAND V/S TARSEM CHAND"],
+        "advocates": ["ASHISH KASHYAP,", "BALDEV RAJ MAHAJAN"],
+    }
+
+
+def test_unreadable_positions_fall_back_to_plain_entry_text():
+    document = MagicMock()
+    document.load_page.side_effect = RuntimeError("bad page")
+
+    assert PDFSearcher._line_x(document, 1) == []

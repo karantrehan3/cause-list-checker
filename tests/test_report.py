@@ -5,10 +5,12 @@ from app.managers.cause_list_manager import NEW_SOURCE, OLD_SOURCE, CauseListRes
 from app.services.emailer.report import (
     FAILED_PREFIX,
     INCOMPLETE_PREFIX,
+    arrange_results,
     build_report,
     build_subject,
     collect_issues,
     is_search_failed,
+    listing_summary,
 )
 
 READ = {"pdf_name": "Ordinary | Main List", "source": OLD_SOURCE, "num_pages": 3}
@@ -81,3 +83,162 @@ def test_build_report_without_case_uses_search_url():
     assert report["subject"] == "Cause List Search Results for ['x'] on 05/11/2026"
     assert report["context"]["urls"]["case_status_url"].startswith("https://")
     assert report["context"]["issues"] == []
+
+
+TERMS = ["Krishan Chand", "RSA-4610-2011"]
+
+
+def _entry(item_no, case_no, terms):
+    return {"terms": terms, "is_entry": True, "item_no": item_no, "case_no": case_no}
+
+
+def _result(pdf_name, matches):
+    return {"pdf_name": pdf_name, "found_pages": {}, "matches": matches}
+
+
+CONTEXT_HIT = {"terms": ["Krishan Chand"], "is_entry": False, "page": 92}
+
+
+def test_lists_with_case_number_hits_come_first():
+    ordinary = _result("Ordinary | Main List", [_entry("296", "CWP-1-2026", TERMS[:1])])
+    regular = _result(
+        "Regular | Supplementary List", [_entry("404", "RSA-4610-2011", TERMS)]
+    )
+
+    arranged = arrange_results([ordinary, regular], TERMS)
+
+    assert [r["pdf_name"] for r in arranged] == [
+        "Regular | Supplementary List",
+        "Ordinary | Main List",
+    ]
+
+
+def test_complete_list_hides_entries_already_shown_in_other_lists():
+    ordinary = _result("Ordinary | Main List", [_entry("296", "CWP-1-2026", TERMS[:1])])
+    complete = _result(
+        "Complete List | Main List",
+        [_entry("296", "CWP-1-2026", TERMS[:1]), _entry("7", "CR-9-2020", TERMS[:1])],
+    )
+
+    arranged = arrange_results([complete, ordinary], TERMS)
+    shown = {r["pdf_name"]: r for r in arranged}
+
+    assert [e["item_no"] for e in shown["Complete List | Main List"]["entries"]] == [
+        "7"
+    ]
+    assert shown["Complete List | Main List"]["hidden_duplicates"] == 1
+    assert shown["Ordinary | Main List"]["hidden_duplicates"] == 0
+
+
+def test_context_hits_are_kept_apart_from_entries():
+    urgent = _result(
+        "Urgent | Main List", [CONTEXT_HIT, _entry("141", "FAO-1-2026", TERMS[:1])]
+    )
+
+    arranged = arrange_results([urgent], TERMS)[0]
+
+    assert [e["item_no"] for e in arranged["entries"]] == ["141"]
+    assert arranged["context_hits"] == [CONTEXT_HIT]
+
+
+def test_arrange_does_not_mutate_and_handles_results_without_matches():
+    plain = {"pdf_name": "Ordinary | Main List", "found_pages": {"x": [3]}}
+    original = dict(plain)
+
+    arranged = arrange_results([plain], ["x"])[0]
+
+    assert plain == original
+    assert arranged["entries"] == [] and arranged["context_hits"] == []
+
+
+def test_build_report_passes_arranged_results():
+    regular = _result(
+        "Regular | Supplementary List", [_entry("404", "RSA-4610-2011", TERMS)]
+    )
+
+    report = build_report(
+        TERMS, "12/11/2026", CauseListResult(new_pdfs=[READ]), [regular], None
+    )
+
+    assert report["context"]["results"][0]["entries"][0]["item_no"] == "404"
+
+
+def _case_lookup(listing_entry=None):
+    return CaseLookupResult(
+        case_id="RSA-4610-2011",
+        case_status_url="https://status",
+        listing_entry=listing_entry,
+    )
+
+
+PDF_ENTRY = {
+    **_entry("404", "RSA-4610-2011", TERMS),
+    "page": 113,
+    "bench": ["HON'BLE MR. JUSTICE VIRINDER AGGARWAL"],
+    "court_room": "12",
+}
+LISTING = {
+    "cl_date": "2026-07-01T00:00:00",
+    "cl_type": "REGULAR",
+    "sr_no": 583,
+    "benchDetails": {"bench_name": "HON'BLE MR. JUSTICE VIKAS SURI"},
+}
+
+
+def test_listing_summary_prefers_the_pdf_entry_with_the_case_number():
+    results = arrange_results(
+        [_result("Regular | Supplementary List", [PDF_ENTRY])], TERMS
+    )
+
+    summary = listing_summary(_case_lookup(LISTING), results)
+
+    assert summary == {
+        "case_id": "RSA-4610-2011",
+        "list_name": "Regular · Supplementary List",
+        "item_no": "404",
+        "bench": "HON'BLE MR. JUSTICE VIRINDER AGGARWAL",
+        "court_room": "12",
+        "page": 113,
+        "source": "cause-list PDF",
+    }
+
+
+def test_listing_summary_falls_back_to_listing_history():
+    summary = listing_summary(_case_lookup(LISTING), [])
+
+    assert summary == {
+        "case_id": "RSA-4610-2011",
+        "list_name": "Regular cause list",
+        "item_no": "583",
+        "bench": "HON'BLE MR. JUSTICE VIKAS SURI",
+        "court_room": None,
+        "page": None,
+        "source": "case listing history",
+    }
+
+
+def test_no_listing_summary_without_case_evidence():
+    other_case = _result("Ordinary | Main List", [_entry("1", "CWP-1-2026", TERMS[:1])])
+
+    assert listing_summary(_case_lookup(), arrange_results([other_case], TERMS)) is None
+    assert listing_summary(None, []) is None
+
+
+def test_build_report_counts_lists_read_and_notes_missing_regular_pdf():
+    lists = CauseListResult(new_pdfs=[READ, BLOCKED])
+
+    context = build_report(["x"], "01/07/2026", lists, [], None)["context"]
+
+    assert context["lists_read"] == 1
+    assert context["has_regular_pdf"] is False
+    assert context["listing_summary"] is None
+
+
+def test_build_report_sees_regular_pdf():
+    regular = {"pdf_name": "Regular | Main List", "source": OLD_SOURCE, "num_pages": 9}
+
+    context = build_report(
+        ["x"], "12/11/2026", CauseListResult(new_pdfs=[regular]), [], None
+    )["context"]
+
+    assert context["has_regular_pdf"] is True

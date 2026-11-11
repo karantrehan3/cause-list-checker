@@ -4,7 +4,8 @@ Styled inline to match new.phhc.gov.in (email clients ignore most <style> rules)
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from html import escape
+from typing import Any, Dict, List, Optional
 
 from app.config import settings
 
@@ -336,13 +337,35 @@ def build_listing_found_html(listing_entry: Dict, judge_name: str, date: str) ->
         else judge_name
     )
 
+    return _listing_table(
+        f"{cl_type} CAUSE LIST — {bench} — {date}",
+        ["Date", "List Type", "Sr No", "Bench"],
+        [date, cl_type, sr_no, bench],
+    )
+
+
+def build_pdf_listing_html(bench_name: str, source: str, date: str) -> str:
+    return _listing_table(
+        f"REGULAR CAUSE LIST (PDF) — {bench_name} — {date}",
+        ["Date", "Listed in", "Bench"],
+        [date, source, bench_name],
+    )
+
+
+def _listing_table(title: str, headers: List[str], cells: List[Any]) -> str:
+    head = "".join(f"<th>{_text(h)}</th>" for h in headers)
+    row = "".join(f"<td>{_text(c)}</td>" for c in cells)
     return f"""<center>
 <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 700px;" class="case-listing-details">
-  <tr><td colspan="4" style="text-align:center; font-weight:bold; background-color: #f2f2f2;">
-{cl_type} CAUSE LIST — {bench} — {date}
+  <tr><td colspan="{len(headers)}" style="text-align:center; font-weight:bold; background-color: #f2f2f2;">
+{_text(title)}
   </td></tr>
-  <tr><th>Date</th><th>List Type</th><th>Sr No</th><th>Bench</th></tr>
+  <tr>{head}</tr>
   <tr style="background-color: #ffff00;">
-<td>{date}</td><td>{cl_type}</td><td>{sr_no}</td><td>{bench}</td>
+{row}
   </tr>
 </table></center>"""
+
+
+def _text(value: Any) -> str:
+    return escape(str(value), quote=False)

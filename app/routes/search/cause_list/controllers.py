@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from app.config import settings
-from app.managers.case_manager import CaseManager
+from app.managers.case_manager import CaseManager, listed_bench_from
 from app.managers.cause_list_manager import CauseListManager
 from app.managers.pdf_searcher import PDFSearcher
 from app.managers.queue import queue_manager
@@ -99,26 +99,27 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
     error_handler = ErrorHandler(emailer, queued_search.recipient_emails)
 
     try:
-        # Step 1 & 2: Cause lists and case checks in parallel
-        cause_lists, case_lookup = await asyncio.gather(
-            asyncio.to_thread(
-                cause_list_manager.fetch,
-                queued_search.date,
-                queued_search.search_terms,
-            ),
-            asyncio.to_thread(
-                case_manager.lookup,
-                queued_search.case_details,
-                queued_search.search_terms,
-                queued_search.date,
-            ),
+        # Step 1: Cause lists
+        cause_lists = await asyncio.to_thread(
+            cause_list_manager.fetch,
+            queued_search.date,
+            queued_search.search_terms,
         )
 
-        # Step 3: Search for the terms in the PDFs (run in separate thread)
+        # Step 2: Search for the terms in the PDFs (run in separate thread)
         pdfs = cause_lists.pdfs
         results = await asyncio.to_thread(searcher.search_pdf, pdfs) if pdfs else []
         if not pdfs:
             print(f"ALERT! No Cause Lists found for {queued_search.date}", flush=True)
+
+        # Step 3: Case checks; after the PDFs, which supply the bench
+        case_lookup = await asyncio.to_thread(
+            case_manager.lookup,
+            queued_search.case_details,
+            queued_search.search_terms,
+            queued_search.date,
+            listed_bench=listed_bench_from(results, queued_search.case_details),
+        )
 
         print(
             f"PROGRESS! Cause List Search Results for {queued_search.date}: ",

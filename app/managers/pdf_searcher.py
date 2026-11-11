@@ -8,6 +8,7 @@ import fitz
 import requests
 
 from app.config import REQUEST_HEADERS
+from app.managers.cause_list_entries import find_entries
 from app.utils.http_debug import describe_failed_response
 
 
@@ -45,34 +46,33 @@ class PDFSearcher:
                 pdf["error"] = invalid_reason
                 return None
 
-            found_pages = {term: [] for term in self.search_terms}
             num_pages = 0
-            pages_with_text = 0
+            page_texts: List[str] = []
             # Read the PDF from memory
             try:
                 with BytesIO(response.content) as pdf_file:
                     with fitz.open(stream=pdf_file.read(), filetype="pdf") as document:
                         num_pages = len(document)
-                        # Search for the terms in each page
                         for page_num in range(num_pages):
                             try:
-                                page = document.load_page(page_num)
-                                text = page.get_text()
-                                if text.strip():
-                                    pages_with_text += 1
-                                    for term in self.search_terms:
-                                        if term.lower() in text.lower():
-                                            found_pages[term].append(
-                                                page_num + 1
-                                            )  # Page numbers are 1-based
+                                page_texts.append(
+                                    document.load_page(page_num).get_text()
+                                )
                             except Exception as page_error:
                                 print(
                                     f"Error reading page {page_num + 1} of PDF {pdf_name}: {page_error}",
                                     flush=True,
                                 )
-                                continue
+                                page_texts.append("")  # keep page numbers aligned
+                        # Must stay inside `with`: positions are read lazily.
+                        found_pages, matches = find_entries(
+                            page_texts,
+                            self.search_terms,
+                            lambda page_no: self._line_x(document, page_no),
+                        )
 
                 response.close()
+                pages_with_text = sum(1 for text in page_texts if text.strip())
 
                 if num_pages == 0 or pages_with_text == 0:
                     reason = (
@@ -98,6 +98,7 @@ class PDFSearcher:
                         "pdf_url": pdf_url,
                         "source": pdf.get("source", ""),
                         "found_pages": found_pages,
+                        "matches": matches,
                         "num_pages": num_pages,
                     }
                 else:
@@ -128,6 +129,22 @@ class PDFSearcher:
             )
             pdf["error"] = f"unexpected error ({e.__class__.__name__})"
             return None
+
+    @staticmethod
+    def _line_x(document: Any, page_no: int) -> List[float]:
+        # Same flags as get_text(), or lines stop lining up with the text.
+        try:
+            blocks = document.load_page(page_no - 1).get_text(
+                "dict", flags=fitz.TEXTFLAGS_TEXT
+            )["blocks"]
+        except Exception:
+            return []
+        return [
+            line["bbox"][0]
+            for block in blocks
+            for line in block.get("lines", [])
+            if "".join(span["text"] for span in line["spans"]).strip()
+        ]
 
     @staticmethod
     def _invalid_pdf_reason(response: requests.Response) -> Optional[str]:

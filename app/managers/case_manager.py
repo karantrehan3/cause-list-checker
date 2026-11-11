@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.clients.court_http import CourtSiteError
 from app.clients.phhc_api import PhhcApi, to_api_date
+from app.managers.cause_list_entries import ListedBench, listed_bench_for_case
 from app.managers.judge_cause_list_manager import (
     JudgeCauseListManager,
     JudgeListOutcome,
@@ -24,6 +25,19 @@ class CaseLookupResult:
     daily: JudgeListOutcome = field(default_factory=JudgeListOutcome)
     regular: JudgeListOutcome = field(default_factory=JudgeListOutcome)
     issues: List[str] = field(default_factory=list)
+    listing_entry: Optional[Dict] = None
+
+
+def case_id_for(case_details: Dict[str, str]) -> str:
+    return f"{case_details['type']}-{case_details['no']}-{case_details['year']}"
+
+
+def listed_bench_from(
+    results: List[Dict[str, Any]], case_details: Optional[Dict[str, str]]
+) -> Optional[ListedBench]:
+    if not case_details:
+        return None
+    return listed_bench_for_case(results, case_id_for(case_details))
 
 
 class CaseManager:
@@ -40,6 +54,7 @@ class CaseManager:
         case_details: Optional[Dict[str, str]],
         search_terms: List[str],
         date: str,
+        listed_bench: Optional[ListedBench] = None,
     ) -> Optional[CaseLookupResult]:
         """Case status + judge-wise lists; None when no case number was given."""
         if not case_details:
@@ -50,7 +65,7 @@ class CaseManager:
             case_details["year"],
         )
         result = CaseLookupResult(
-            case_id=f"{case_type}-{case_no}-{case_year}",
+            case_id=case_id_for(case_details),
             case_status_url=case_html.case_status_url(case_type, case_no, case_year),
         )
 
@@ -86,6 +101,7 @@ class CaseManager:
         )
 
         listing_entry = self._listing_for_date(listing_history, date)
+        result.listing_entry = listing_entry
         if listing_entry:
             print(
                 f"PROGRESS! {result.case_id} is in the listing history for {date}",
@@ -93,7 +109,7 @@ class CaseManager:
             )
 
         judge_lists = self.judge_lists.check(
-            case_data, listing_entry, search_terms, date
+            case_data, listing_entry, search_terms, date, listed_bench
         )
         result.daily, result.regular = judge_lists.daily, judge_lists.regular
         result.issues += judge_lists.issues
