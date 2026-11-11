@@ -10,6 +10,7 @@ from app.managers.cause_list_manager import (
     CauseListManager,
     CauseListResult,
     cause_list_sources,
+    pdf_list_type,
 )
 
 OLD_SITE_HTML = """
@@ -147,3 +148,15 @@ def test_result_pdfs_combines_existing_and_new():
     )
 
     assert [p["pdf_name"] for p in result.pdfs] == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    "pdf_name, expected",
+    [
+        ("Regular | Supplementary List", "regular"),
+        ("Complete List | Main List", "complete list"),
+        ("Urgent", "urgent"),
+    ],
+)
+def test_pdf_list_type(pdf_name, expected):
+    assert pdf_list_type(pdf_name) == expected

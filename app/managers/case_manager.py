@@ -28,14 +28,18 @@ class CaseLookupResult:
     listing_entry: Optional[Dict] = None  # listing history entry for the date
 
 
+def case_id_for(case_details: Dict[str, str]) -> str:
+    """{"type": "RSA", "no": "4610", "year": "2011"} -> "RSA-4610-2011"."""
+    return f"{case_details['type']}-{case_details['no']}-{case_details['year']}"
+
+
 def listed_bench_from(
     results: List[Dict[str, Any]], case_details: Optional[Dict[str, str]]
 ) -> Optional[ListedBench]:
     """Bench printed above the searched case in the cause-list PDFs, if found."""
     if not case_details:
         return None
-    case_id = f"{case_details['type']}-{case_details['no']}-{case_details['year']}"
-    return listed_bench_for_case(results, case_id)
+    return listed_bench_for_case(results, case_id_for(case_details))
 
 
 class CaseManager:
@@ -63,7 +67,7 @@ class CaseManager:
             case_details["year"],
         )
         result = CaseLookupResult(
-            case_id=f"{case_type}-{case_no}-{case_year}",
+            case_id=case_id_for(case_details),
             case_status_url=case_html.case_status_url(case_type, case_no, case_year),
         )
 

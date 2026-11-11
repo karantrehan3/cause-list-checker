@@ -20,8 +20,16 @@ from app.managers.pdf_tracker import pdf_tracker
 OLD_SOURCE = "highcourtchd.gov.in"
 NEW_SOURCE = "new.phhc.gov.in"
 MAIN_SUPPL_NAMES = {"M": "Main List", "S": "Supplementary List"}
+# pdf_list_type() values the email treats specially.
+REGULAR_LIST = "regular"
+COMPLETE_LIST = "complete list"  # repeats the entries of the other lists
 
 Pdf = Dict[str, str]
+
+
+def pdf_list_type(pdf_name: str) -> str:
+    """'Regular | Supplementary List' -> 'regular' (pdf_name is "<type> | <main/sup>")."""
+    return pdf_name.split(" | ")[0].strip().lower()
 
 
 def cause_list_sources() -> List[Dict[str, str]]:

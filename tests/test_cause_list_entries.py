@@ -1,10 +1,7 @@
 """Entry extraction from cause-list page text (layouts copied from real PHHC lists)."""
 
-import pytest
-
 from app.managers.cause_list_entries import (
     ListedBench,
-    compile_term,
     find_entries,
     listed_bench_for_case,
 )
@@ -140,37 +137,12 @@ def test_names_match_across_a_line_break():
     assert rows[0]["item_no"] == "12"
 
 
-@pytest.mark.parametrize(
-    "text",
-    [
-        "CR-2227-2010",
-        "CR-2227-\n2010",
-        "CR-\n2227-2010",
-        "CR - 2227 - 2010",
-        "**CR-2227-2010",
-    ],
-)
-def test_case_number_matches_when_wrapped_or_spaced_at_hyphens(text):
-    assert compile_term("CR-2227-2010").search(text)
-
-
-def test_case_number_does_not_match_a_different_number():
-    assert not compile_term("CR-2227-2010").search("CR-2227-2011")
-    assert not compile_term("CR-2227-2010").search("CR-22270-2010")
-
-
 def test_wrapped_case_number_is_found_in_its_entry():
     page = "141 ** AMBALA\n[11-Nov-26]\nFAO-6127-\n2026\nKRISHAN CHAND V/S X\n"
     found_pages, rows = find_entries([page], ["FAO-6127-2026"])
 
     assert found_pages == {"FAO-6127-2026": [1]}
     assert rows[0]["item_no"] == "141"
-
-
-def test_case_numbers_stay_substring_matches():
-    assert compile_term("RSA-4610").search("**RSA-4610-2011")
-    assert not compile_term("Krishan Chand").search("KRISHAN CHANDER")
-    assert compile_term("Krishan Chand").search("KRISHAN CHAND,")
 
 
 def test_roman_and_single_star_entry_markers():
@@ -293,8 +265,21 @@ ORDINARY_296_POSITIONED = [
 ]
 
 
+def _positioned(*pages):
+    """(page texts, line_x) as PDFSearcher passes them, plus the pages asked for."""
+    asked = []
+
+    def line_x(page_no):
+        asked.append(page_no)
+        return [x for x, _ in pages[page_no - 1]]
+
+    texts = ["\n".join(text for _, text in page) for page in pages]
+    return texts, line_x, asked
+
+
 def test_entry_is_split_into_case_parties_advocates_as_printed():
-    _, rows = find_entries([REGULAR_404_POSITIONED], ["RSA-4610-2011"])
+    texts, line_x, _ = _positioned(REGULAR_404_POSITIONED)
+    _, rows = find_entries(texts, ["RSA-4610-2011"], line_x)
 
     assert rows[0]["columns"] == {
         "case": ["404 ** RSA-4610-2011", "SANGRUR", "[11-Nov-26]", "CM-13421-C-2011"],
@@ -309,7 +294,8 @@ def test_entry_is_split_into_case_parties_advocates_as_printed():
 
 
 def test_five_column_layout_folds_left_columns_into_case():
-    _, rows = find_entries([ORDINARY_296_POSITIONED], ["Krishan Chand"])
+    texts, line_x, _ = _positioned(ORDINARY_296_POSITIONED)
+    _, rows = find_entries(texts, ["Krishan Chand"], line_x)
 
     columns = rows[0]["columns"]
     assert columns["case"] == [
@@ -329,28 +315,51 @@ def test_five_column_layout_folds_left_columns_into_case():
 
 
 def test_entry_spanning_pages_keeps_columns_from_both_pages():
-    first, second = REGULAR_404_POSITIONED[:7], REGULAR_404_POSITIONED[7:]
-    _, rows = find_entries([first, second], ["RSA-4610-2011"])
+    texts, line_x, _ = _positioned(
+        REGULAR_404_POSITIONED[:7], REGULAR_404_POSITIONED[7:]
+    )
+    _, rows = find_entries(texts, ["RSA-4610-2011"], line_x)
 
     assert rows[0]["columns"]["case"][-1] == "CM-13421-C-2011"
     assert rows[0]["columns"]["advocates"][-1] == "BALDEV RAJ MAHAJAN,"
 
 
+def test_positions_are_read_only_for_pages_with_a_matched_entry():
+    other_page = [(28, "1 ** CWP-1-2020"), (200, "SOMEONE V/S STATE"), (400, "ADV")]
+    texts, line_x, asked = _positioned(other_page, REGULAR_404_POSITIONED, other_page)
+
+    find_entries(texts, ["RSA-4610-2011"], line_x)
+
+    assert asked == [2]
+
+
 def test_no_columns_without_positions_or_with_fewer_than_three():
     _, plain = find_entries([REGULAR_P113], ["RSA-4610-2011"])
-    two_cols = [(28, "1 ** CWP-1-2020"), (200, "KRISHAN CHAND V/S STATE")]
-    _, narrow = find_entries([two_cols], ["Krishan Chand"])
+    texts, line_x, _ = _positioned(
+        [(28, "1 ** CWP-1-2020"), (200, "KRISHAN CHAND V/S STATE")]
+    )
+    _, narrow = find_entries(texts, ["Krishan Chand"], line_x)
 
     assert plain[0]["columns"] is None
     assert narrow[0]["columns"] is None
 
 
+def test_no_columns_when_positions_do_not_line_up_with_the_text():
+    texts, _, _ = _positioned(REGULAR_404_POSITIONED)
+    _, rows = find_entries(texts, ["RSA-4610-2011"], lambda page_no: [28, 168])
+
+    assert rows[0]["columns"] is None
+
+
 def test_context_rows_have_no_columns():
-    page = [(28, "note"), (200, "KRISHAN CHAND notice"), (400, "x")]
-    _, rows = find_entries([page], ["Krishan Chand"])
+    texts, line_x, asked = _positioned(
+        [(28, "note"), (200, "KRISHAN CHAND notice"), (400, "x")]
+    )
+    _, rows = find_entries(texts, ["Krishan Chand"], line_x)
 
     assert rows[0]["is_entry"] is False
     assert rows[0]["columns"] is None
+    assert asked == []
 
 
 def _result(name, rows):

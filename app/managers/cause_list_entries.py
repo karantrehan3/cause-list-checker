@@ -9,7 +9,10 @@ the exact listing instead of just a page number.
 import re
 from bisect import bisect_right
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+
+from app.managers.cause_list_manager import REGULAR_LIST, pdf_list_type
+from app.utils.search_terms import compile_term
 
 # "404 ** RSA-..", "406.1 WITH RSA-..", "501 ***", "218 *", "141 V FARIDKOT", "732 II (ON BAIL)"
 ENTRY_START = re.compile(r"^(\d+(?:\.\d+)?)\s+(?:\*{1,3}|WITH|[IVX]{1,4})(?=\s|$)")
@@ -18,7 +21,6 @@ BENCH_HEADER = re.compile(r"^HON[’']?BLE\s.*\b(?:JUSTICE|BENCH)\b")
 LIST_TITLE = re.compile(r"\bDATED\s+\d{1,2}/\d{1,2}/\d{4}")
 COURT_ROOM = re.compile(r"\bCR\s*NO\.?\s*(\w+)", re.I)
 CASE_NO = re.compile(r"\b[A-Z][A-Z.()]*(?:-[A-Z]+)*-\d+(?:-[A-Z]+)?-\d{4}\b")
-HAS_DIGIT = re.compile(r"\d")
 
 MAX_ENTRY_LINES = 30
 CONTEXT_LINES = 3
@@ -27,9 +29,20 @@ COURT_ROOM_LOOKBACK = 4
 COLUMN_GAP = 40
 MIN_COLUMNS = 3
 
-# A page is plain text, or (x, text) per line in PDF reading order.
-Page = Union[str, Sequence[Tuple[float, str]]]
-Line = Tuple[int, str, Optional[float]]  # (1-based page, collapsed text, x or None)
+# x position of every non-blank line on a 1-based page, in get_text() order.
+LineX = Callable[[int], List[float]]
+
+
+class Line(NamedTuple):
+    page: int  # 1-based
+    index: int  # position among the page's non-blank lines
+    text: str  # whitespace collapsed
+
+
+class Span(NamedTuple):
+    start: int
+    end: int  # exclusive
+    is_entry: bool  # False: a ±CONTEXT_LINES window outside any entry
 
 
 @dataclass(frozen=True)
@@ -41,47 +54,33 @@ class ListedBench:
     is_regular_list: bool = False
 
 
-def compile_term(term: str) -> "re.Pattern[str]":
-    """Case numbers (any digit) match as substrings; names match whole words.
-
-    Words may be split across lines in the PDF, so any whitespace run matches.
-    """
-    if HAS_DIGIT.search(term):
-        # Lists wrap case numbers at hyphens ("FAO-6127-⏎2026", "WITH FAO-⏎6130-2026").
-        parts = re.split(r"\s*-\s*", term.strip())
-        body = r"\s*-\s*".join(
-            r"\s+".join(re.escape(word) for word in part.split()) for part in parts
-        )
-        return re.compile(body, re.I)
-    body = r"\s+".join(re.escape(word) for word in term.split())
-    return re.compile(rf"(?<!\w){body}(?!\w)", re.I)
-
-
 def find_entries(
-    pages: List[Page], terms: List[str]
+    pages: List[str], terms: List[str], line_x: Optional[LineX] = None
 ) -> Tuple[Dict[str, List[int]], List[Dict[str, Any]]]:
-    """Return ({term: [pages]}, [matched rows]) for one cause-list PDF."""
+    """({term: [pages]}, [matched rows]) for one cause-list PDF.
+
+    `line_x` is only called for pages holding a matched entry, to split it into
+    columns; positions are slower to extract than text, and most pages never need them.
+    """
     lines = _clean_lines(pages)
-    text = "\n".join(line for _, line, _ in lines)
+    text = "\n".join(line.text for line in lines)
     line_starts = _line_offsets(lines)
 
     found_pages: Dict[str, List[int]] = {}
-    hits: Dict[Tuple[int, int], set] = {}
+    hits: Dict[Span, List[str]] = {}
     for term in terms:
-        pages = set()
+        pages_hit = set()
         for match in compile_term(term).finditer(text):
-            line_idx = bisect_right(line_starts, match.start()) - 1
-            pages.add(lines[line_idx][0])
-            hits.setdefault(_row_span(lines, line_idx), set()).add(term)
-        found_pages[term] = sorted(pages)
+            idx = bisect_right(line_starts, match.start()) - 1
+            pages_hit.add(lines[idx].page)
+            span_terms = hits.setdefault(_span(lines, idx), [])
+            if term not in span_terms:
+                span_terms.append(term)
+        found_pages[term] = sorted(pages_hit)
 
-    rows = [
-        _build_row(lines, span, [t for t in terms if t in matched])
-        for span, matched in hits.items()
-    ]
-    rows.sort(key=lambda row: (-len(row["terms"]), row["_start"]))
-    for row in rows:
-        del row["_start"]
+    columns = _ColumnSplitter(lines, line_x)
+    ordered = sorted(hits.items(), key=lambda hit: (-len(hit[1]), hit[0].start))
+    rows = [_build_row(lines, span, matched, columns) for span, matched in ordered]
     return found_pages, rows
 
 
@@ -96,132 +95,157 @@ def listed_bench_for_case(
                 return ListedBench(
                     name=row["bench"][0],
                     source=f"{result['pdf_name']}, item {row['item_no']}, p. {row['page']}",
-                    is_regular_list=result["pdf_name"].lower().startswith("regular"),
+                    is_regular_list=pdf_list_type(result["pdf_name"]) == REGULAR_LIST,
                 )
     return None
 
 
-def _clean_lines(pages: List[Page]) -> List[Line]:
+def _clean_lines(pages: List[str]) -> List[Line]:
     lines: List[Line] = []
     for page_no, page in enumerate(pages, start=1):
-        raw_lines = (
-            [(None, raw) for raw in page.split("\n")] if isinstance(page, str) else page
-        )
-        lines += [
-            (page_no, " ".join(raw.split()), x) for x, raw in raw_lines if raw.strip()
-        ]
+        texts = [" ".join(raw.split()) for raw in page.split("\n") if raw.strip()]
+        lines += [Line(page_no, i, text) for i, text in enumerate(texts)]
     return lines
 
 
 def _line_offsets(lines: List[Line]) -> List[int]:
     offsets, position = [], 0
-    for _, line, _ in lines:
+    for line in lines:
         offsets.append(position)
-        position += len(line) + 1
+        position += len(line.text) + 1
     return offsets
 
 
-def _is_boundary(line: str) -> bool:
-    return bool(BENCH_HEADER.match(line) or LIST_TITLE.search(line))
+def _is_boundary(text: str) -> bool:
+    return bool(BENCH_HEADER.match(text) or LIST_TITLE.search(text))
 
 
-def _row_span(lines: List[Line], hit_idx: int) -> Tuple[int, int]:
-    """[start, end) of the entry holding the hit, or a ±3-line window outside entries."""
+def _span(lines: List[Line], hit_idx: int) -> Span:
+    """The entry holding the hit, or a ±CONTEXT_LINES window outside entries."""
     start = _entry_start(lines, hit_idx)
     if start is None:
-        return (
+        return Span(
             max(0, hit_idx - CONTEXT_LINES),
             min(len(lines), hit_idx + CONTEXT_LINES + 1),
+            is_entry=False,
         )
     end = start + 1
-    while end < len(lines):
-        line = lines[end][1]
-        if ENTRY_START.match(line) or _is_boundary(line):
-            break
+    while end < len(lines) and not (
+        ENTRY_START.match(lines[end].text) or _is_boundary(lines[end].text)
+    ):
         end += 1
-    return start, end
+    return Span(start, end, is_entry=True)
 
 
 def _entry_start(lines: List[Line], hit_idx: int) -> Optional[int]:
     for idx in range(hit_idx, -1, -1):
-        line = lines[idx][1]
-        if ENTRY_START.match(line):
+        if ENTRY_START.match(lines[idx].text):
             return idx
-        if _is_boundary(line):
+        if _is_boundary(lines[idx].text):
             return None
     return None
 
 
 def _build_row(
-    lines: List[Line], span: Tuple[int, int], terms: List[str]
+    lines: List[Line], span: Span, terms: List[str], columns: "_ColumnSplitter"
 ) -> Dict[str, Any]:
-    start, end = span
-    entry_match = ENTRY_START.match(lines[start][1])
-    is_entry = bool(entry_match) and _row_span(lines, start) == span
-    row_lines = [line for _, line, _ in lines[start:end]]
-    bench, court_room = _bench_for(lines, start) if is_entry else ([], None)
-    return {
+    entry = lines[span.start : span.end]
+    texts = [line.text for line in entry]
+    row = {
         "terms": terms,
-        "is_entry": is_entry,
-        "item_no": entry_match.group(1) if is_entry else None,
-        "case_no": _first_case_no(row_lines) if is_entry else None,
-        "page": lines[start][0],
-        "last_page": lines[end - 1][0],
+        "is_entry": span.is_entry,
+        "item_no": None,
+        "case_no": None,
+        "page": entry[0].page,
+        "last_page": entry[-1].page,
+        "bench": [],
+        "court_room": None,
+        "columns": None,
+        "lines": texts[:MAX_ENTRY_LINES],
+        "truncated": len(texts) > MAX_ENTRY_LINES,
+    }
+    if not span.is_entry:
+        return row
+    bench, court_room = _bench_for(lines, span.start)
+    return {
+        **row,
+        "item_no": ENTRY_START.match(texts[0]).group(1),
+        "case_no": _first_case_no(texts),
         "bench": bench,
         "court_room": court_room,
-        "columns": _split_columns(lines[start:end]) if is_entry else None,
-        "lines": row_lines[:MAX_ENTRY_LINES],
-        "truncated": len(row_lines) > MAX_ENTRY_LINES,
-        "_start": start,
+        "columns": columns.split(entry),
     }
 
 
-def _first_case_no(row_lines: List[str]) -> Optional[str]:
-    joined = re.sub(r"-\n", "-", "\n".join(row_lines))
-    match = CASE_NO.search(joined)
+def _first_case_no(texts: List[str]) -> Optional[str]:
+    match = CASE_NO.search(re.sub(r"-\n", "-", "\n".join(texts)))
     return match.group(0) if match else None
 
 
 def _bench_for(lines: List[Line], start: int) -> Tuple[List[str], Optional[str]]:
     """Bench header block above the entry (two lines = division bench) and its CR NO."""
-    idx = start - 1
-    while idx >= 0 and not BENCH_HEADER.match(lines[idx][1]):
-        idx -= 1
-    if idx < 0:
+    last = start - 1
+    while last >= 0 and not BENCH_HEADER.match(lines[last].text):
+        last -= 1
+    if last < 0:
         return [], None
 
-    first = idx
-    while first > 0 and BENCH_HEADER.match(lines[first - 1][1]):
+    first = last
+    while first > 0 and BENCH_HEADER.match(lines[first - 1].text):
         first -= 1
-    bench = [line for _, line, _ in lines[first : idx + 1]]
+    bench = [line.text for line in lines[first : last + 1]]
 
     # Joined, because the title often wraps between "CR NO" and the number.
-    title = "\n".join(
-        line for _, line, _ in lines[max(0, first - COURT_ROOM_LOOKBACK) : first]
-    )
-    rooms = COURT_ROOM.findall(title)
+    title_lines = lines[max(0, first - COURT_ROOM_LOOKBACK) : first]
+    rooms = COURT_ROOM.findall("\n".join(line.text for line in title_lines))
     if not rooms or rooms[-1].lower() == "none":
         return bench, None
     return bench, rooms[-1]
 
 
-def _split_columns(entry: List[Line]) -> Optional[Dict[str, List[str]]]:
-    """Case / Parties / Advocates cells, each line printed as-is.
+class _ColumnSplitter:
+    """Case / Parties / Advocates cells from line x positions, text as printed.
 
-    Columns are found from the lines' x positions: right-most is Advocates,
-    the one before it Parties, everything left of that is the Case column.
+    Right-most column is Advocates, the one before it Parties, everything left
+    of that is the Case column. Positions are fetched once per page, and only
+    trusted when their count matches the page's text lines.
     """
-    if any(x is None for _, _, x in entry):
-        return None  # plain-text input has no positions
-    xs = sorted({x for _, _, x in entry})
-    starts = [xs[0]] + [b for a, b in zip(xs, xs[1:]) if b - a > COLUMN_GAP]
-    if len(starts) < MIN_COLUMNS:
-        return None
-    parties_x, advocates_x = starts[-2], starts[-1]
-    cells: Dict[str, List[str]] = {"case": [], "parties": [], "advocates": []}
-    for _, line, x in entry:
-        key = (
-            "advocates" if x >= advocates_x else "parties" if x >= parties_x else "case"
-        )
-        cells[key].append(line)
-    return cells
+
+    def __init__(self, lines: List[Line], line_x: Optional[LineX]):
+        self._line_x = line_x
+        self._page_sizes: Dict[int, int] = {}
+        for line in lines:
+            self._page_sizes[line.page] = line.index + 1
+        self._cache: Dict[int, Optional[List[float]]] = {}
+
+    def split(self, entry: List[Line]) -> Optional[Dict[str, List[str]]]:
+        xs = [self._x(line) for line in entry]
+        if any(x is None for x in xs):
+            return None
+        distinct = sorted(set(xs))
+        starts = [distinct[0]] + [
+            b for a, b in zip(distinct, distinct[1:]) if b - a > COLUMN_GAP
+        ]
+        if len(starts) < MIN_COLUMNS:
+            return None
+        parties_x, advocates_x = starts[-2], starts[-1]
+        cells: Dict[str, List[str]] = {"case": [], "parties": [], "advocates": []}
+        for line, x in zip(entry, xs):
+            column = (
+                "advocates"
+                if x >= advocates_x
+                else "parties" if x >= parties_x else "case"
+            )
+            cells[column].append(line.text)
+        return cells
+
+    def _x(self, line: Line) -> Optional[float]:
+        if self._line_x is None:
+            return None
+        if line.page not in self._cache:
+            xs = self._line_x(line.page)
+            self._cache[line.page] = (
+                xs if len(xs) == self._page_sizes.get(line.page) else None
+            )
+        xs = self._cache[line.page]
+        return xs[line.index] if xs else None

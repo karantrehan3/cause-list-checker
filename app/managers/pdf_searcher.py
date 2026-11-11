@@ -2,7 +2,7 @@ import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import fitz
 import requests
@@ -47,7 +47,7 @@ class PDFSearcher:
                 return None
 
             num_pages = 0
-            pages: List[List[Tuple[float, str]]] = []
+            page_texts: List[str] = []
             # Read the PDF from memory
             try:
                 with BytesIO(response.content) as pdf_file:
@@ -55,19 +55,25 @@ class PDFSearcher:
                         num_pages = len(document)
                         for page_num in range(num_pages):
                             try:
-                                pages.append(
-                                    self._positioned_lines(document.load_page(page_num))
+                                page_texts.append(
+                                    document.load_page(page_num).get_text()
                                 )
                             except Exception as page_error:
                                 print(
                                     f"Error reading page {page_num + 1} of PDF {pdf_name}: {page_error}",
                                     flush=True,
                                 )
-                                pages.append([])  # keep page numbers aligned
+                                page_texts.append("")  # keep page numbers aligned
+                        # Inside the `with`: line positions are read lazily, only for
+                        # pages that hold a matched entry.
+                        found_pages, matches = find_entries(
+                            page_texts,
+                            self.search_terms,
+                            lambda page_no: self._line_x(document, page_no),
+                        )
 
                 response.close()
-                pages_with_text = sum(1 for page in pages if page)
-                found_pages, matches = find_entries(pages, self.search_terms)
+                pages_with_text = sum(1 for text in page_texts if text.strip())
 
                 if num_pages == 0 or pages_with_text == 0:
                     reason = (
@@ -126,14 +132,23 @@ class PDFSearcher:
             return None
 
     @staticmethod
-    def _positioned_lines(page: Any) -> List[Tuple[float, str]]:
-        """(x, text) for each non-blank line, in the same order as page.get_text()."""
+    def _line_x(document: Any, page_no: int) -> List[float]:
+        """x of each non-blank line on a 1-based page, in page.get_text() order.
+
+        Same text flags as get_text(), so lines come out identically; an empty
+        list (no columns, plain text shown) if the page cannot be read.
+        """
+        try:
+            blocks = document.load_page(page_no - 1).get_text(
+                "dict", flags=fitz.TEXTFLAGS_TEXT
+            )["blocks"]
+        except Exception:
+            return []
         return [
-            (line["bbox"][0], text)
-            for block in page.get_text("dict")["blocks"]
+            line["bbox"][0]
+            for block in blocks
             for line in block.get("lines", [])
-            for text in ["".join(span["text"] for span in line["spans"])]
-            if text.strip()
+            if "".join(span["text"] for span in line["spans"]).strip()
         ]
 
     @staticmethod

@@ -6,11 +6,11 @@ from app.services.emailer.report import (
     FAILED_PREFIX,
     INCOMPLETE_PREFIX,
     arrange_results,
-    listing_summary,
     build_report,
     build_subject,
     collect_issues,
     is_search_failed,
+    listing_summary,
 )
 
 READ = {"pdf_name": "Ordinary | Main List", "source": OLD_SOURCE, "num_pages": 3}
