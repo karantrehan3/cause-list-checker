@@ -33,7 +33,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 from app.config import settings
-from app.managers.case_manager import CaseManager
+from app.managers.case_manager import CaseManager, listed_bench_from
 from app.managers.cause_list_manager import CauseListManager
 from app.managers.health_check_manager import HealthCheckManager
 from app.managers.pdf_searcher import PDFSearcher
@@ -78,7 +78,6 @@ def process_date(
 ):
     try:
         cause_lists = cause_list_manager.fetch(date, search_terms)
-        case_lookup = case_manager.lookup(case_details, search_terms, date)
 
         pdfs = cause_lists.pdfs
         if not pdfs:
@@ -88,6 +87,15 @@ def process_date(
             print(f"PROGRESS! {len(pdfs)} Cause List(s) found for {date}")
             results = searcher.search_pdf(pdfs)
             print(f"PROGRESS! Search complete for {date}: {len(results)} result(s)")
+
+        # After the PDF search: the bench printed above the case is the fallback
+        # when the case's listing history has no entry for this date yet.
+        case_lookup = case_manager.lookup(
+            case_details,
+            search_terms,
+            date,
+            listed_bench=listed_bench_from(results, case_details),
+        )
 
         report = build_report(search_terms, date, cause_lists, results, case_lookup)
         for issue in report["context"]["issues"]:

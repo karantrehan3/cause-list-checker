@@ -2,12 +2,13 @@ import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import fitz
 import requests
 
 from app.config import REQUEST_HEADERS
+from app.managers.cause_list_entries import find_entries
 from app.utils.http_debug import describe_failed_response
 
 
@@ -45,34 +46,28 @@ class PDFSearcher:
                 pdf["error"] = invalid_reason
                 return None
 
-            found_pages = {term: [] for term in self.search_terms}
             num_pages = 0
-            pages_with_text = 0
+            pages: List[List[Tuple[float, str]]] = []
             # Read the PDF from memory
             try:
                 with BytesIO(response.content) as pdf_file:
                     with fitz.open(stream=pdf_file.read(), filetype="pdf") as document:
                         num_pages = len(document)
-                        # Search for the terms in each page
                         for page_num in range(num_pages):
                             try:
-                                page = document.load_page(page_num)
-                                text = page.get_text()
-                                if text.strip():
-                                    pages_with_text += 1
-                                    for term in self.search_terms:
-                                        if term.lower() in text.lower():
-                                            found_pages[term].append(
-                                                page_num + 1
-                                            )  # Page numbers are 1-based
+                                pages.append(
+                                    self._positioned_lines(document.load_page(page_num))
+                                )
                             except Exception as page_error:
                                 print(
                                     f"Error reading page {page_num + 1} of PDF {pdf_name}: {page_error}",
                                     flush=True,
                                 )
-                                continue
+                                pages.append([])  # keep page numbers aligned
 
                 response.close()
+                pages_with_text = sum(1 for page in pages if page)
+                found_pages, matches = find_entries(pages, self.search_terms)
 
                 if num_pages == 0 or pages_with_text == 0:
                     reason = (
@@ -98,6 +93,7 @@ class PDFSearcher:
                         "pdf_url": pdf_url,
                         "source": pdf.get("source", ""),
                         "found_pages": found_pages,
+                        "matches": matches,
                         "num_pages": num_pages,
                     }
                 else:
@@ -128,6 +124,17 @@ class PDFSearcher:
             )
             pdf["error"] = f"unexpected error ({e.__class__.__name__})"
             return None
+
+    @staticmethod
+    def _positioned_lines(page: Any) -> List[Tuple[float, str]]:
+        """(x, text) for each non-blank line, in the same order as page.get_text()."""
+        return [
+            (line["bbox"][0], text)
+            for block in page.get_text("dict")["blocks"]
+            for line in block.get("lines", [])
+            for text in ["".join(span["text"] for span in line["spans"])]
+            if text.strip()
+        ]
 
     @staticmethod
     def _invalid_pdf_reason(response: requests.Response) -> Optional[str]:

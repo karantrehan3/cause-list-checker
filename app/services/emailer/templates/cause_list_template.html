@@ -107,6 +107,105 @@
         border: 1px solid #f5c6cb;
       }
 
+      .results-table {
+        max-width: 760px;
+      }
+      .found-cell {
+        text-align: left;
+      }
+      .found-item {
+        margin-bottom: 6px;
+      }
+      .found-page {
+        font-size: 11px;
+        color: #666;
+        margin-left: 4px;
+      }
+      .found-context {
+        color: #7d6608;
+        font-size: 12px;
+      }
+      .found-note {
+        font-size: 11px;
+        color: #888;
+        font-style: italic;
+      }
+      .detail-row > td {
+        background-color: #fcfcfc;
+        padding: 10px;
+        text-align: left;
+      }
+      .entry {
+        border: 1px solid #ddd;
+        border-left: 4px solid #2e7d32;
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        background-color: #fafafa;
+      }
+      .entry-head {
+        font-size: 15px;
+        color: #222;
+      }
+      .entry-page {
+        float: right;
+        font-size: 12px;
+        color: #666;
+      }
+      .term-chip {
+        display: inline-block;
+        font-size: 11px;
+        background-color: #e8f5e9;
+        color: #1b5e20;
+        border: 1px solid #c8e6c9;
+        border-radius: 10px;
+        padding: 1px 8px;
+        margin-right: 4px;
+      }
+      .entry-bench {
+        font-size: 13px;
+        color: #444;
+        margin-bottom: 6px;
+      }
+      .entry-text {
+        font-family: Menlo, Consolas, monospace;
+        font-size: 12px;
+        color: #333;
+        white-space: pre-wrap;
+        margin: 0;
+        padding-top: 6px;
+        border-top: 1px dashed #ddd;
+      }
+
+      .entry-table {
+        max-width: 100%;
+        font-size: 12px;
+        table-layout: fixed;
+      }
+      .entry-table th {
+        font-size: 12px;
+        padding: 4px 6px;
+      }
+      .entry-table td {
+        text-align: left;
+        vertical-align: top;
+        padding: 6px;
+        font-family: Menlo, Consolas, monospace;
+        color: #333;
+        word-break: break-word;
+      }
+      .status-note {
+        font-size: 13px;
+        color: #555;
+        margin: -16px auto 20px auto;
+        width: 80%;
+      }
+      .bench-note {
+        font-size: 13px;
+        color: #555;
+        margin: 4px 0 0 0;
+      }
+
       @media (max-width: 600px) {
         h1 {
           font-size: 1.5em;
@@ -124,6 +223,14 @@
         Cause List Search Results for '{{ search_terms | join(', ') }}' on {{
         date }}
       </h1>
+
+      <!-- Summary: where the searched case is listed, when we know -->
+      {% if listing_summary %}
+      {% set s = listing_summary %}
+      <h3 class="status-message status-success listing-summary">
+        ✅ {{ s.case_id }} is listed on {{ date }}: {{ s.list_name }}{% if s.item_no %}, item {{ s.item_no }}{% endif %}{% if s.bench %}, {{ s.bench }}{% endif %}{% if s.court_room %}, CR NO {{ s.court_room }}{% endif %}{% if s.page %}, p. {{ s.page }}{% endif %} (from {{ s.source }})
+      </h3>
+      {% endif %}
 
       <!-- Issues Banner: every check that could not be completed -->
       {% if issues %}
@@ -152,29 +259,49 @@
         {% if results %}
         <h3 class="status-message status-success">✅ Search results found.</h3>
 
-        <!-- Search Results Table -->
-        <table>
+        <!-- Search Results Table: one row per list, its matched entries right under it -->
+        <table class="results-table">
           <thead>
             <tr>
               <th>List Type</th>
               <th>Total Pages</th>
-              <th>Pages Found</th>
+              <th>Found</th>
               <th>Main/Sup</th>
               <th>Source</th>
             </tr>
           </thead>
           <tbody>
             {% for result in results %}
-            <tr>
-              {% set parts = result.pdf_name.split(' | ') %} {% set is_new =
-              result in new_pdfs %}
+            {% set parts = result.pdf_name.split(' | ') %}
+            {% set is_new = result in new_pdfs %}
+            <tr class="list-row">
               <td>
                 <a href="{{ result.pdf_url }}">
                   {% if is_new %}🆕 {% endif %}{{ parts[0] }}
                 </a>
               </td>
               <td>{{ result.num_pages }} pages</td>
-              <td>
+              <td class="found-cell">
+                {% if result.matches is defined %}
+                {% for row in result.entries %}
+                <div class="found-item">
+                  <strong>#{{ row.item_no }}</strong>{% if row.case_no %} {{ row.case_no }}{% endif %}
+                  <span class="found-page">{% if row.last_page != row.page %}pp. {{ row.page }}–{{ row.last_page }}{% else %}p. {{ row.page }}{% endif %}</span>
+                  <div>{% for term in row.terms %}<span class="term-chip">{{ term }}</span>{% endfor %}</div>
+                </div>
+                {% endfor %}
+                {% for row in result.context_hits %}
+                <div class="found-item found-context">
+                  p. {{ row.page }} &middot; text outside a numbered entry
+                  <div>{% for term in row.terms %}<span class="term-chip">{{ term }}</span>{% endfor %}</div>
+                </div>
+                {% endfor %}
+                {% if result.hidden_duplicates %}
+                <div class="found-note">
+                  {{ result.hidden_duplicates }} {{ 'entry' if result.hidden_duplicates == 1 else 'entries' }} also in other lists above
+                </div>
+                {% endif %}
+                {% else %}
                 {% for term, pages in result.found_pages.items() %}
                 <div>
                   <strong>{{ term }}:</strong>
@@ -182,17 +309,59 @@
                   {% endif %}
                 </div>
                 {% endfor %}
+                {% endif %}
               </td>
               <td>{{ parts[1] if parts|length > 1 else '' }}</td>
               <td>{{ result.source }}</td>
             </tr>
+            {% if result.entries %}
+            <tr class="detail-row">
+              <td colspan="5">
+                {% for row in result.entries %}
+                <div class="entry">
+                  <div class="entry-head">
+                    <strong>#{{ row.item_no }}</strong>{% if row.case_no %} &middot; <strong>{{ row.case_no }}</strong>{% endif %}
+                    <span class="entry-page">{% if row.last_page != row.page %}pp. {{ row.page }}–{{ row.last_page }}{% else %}p. {{ row.page }}{% endif %}</span>
+                  </div>
+                  {% if row.bench %}
+                  <div class="entry-bench">
+                    {{ row.bench | join(' & ') }}{% if row.court_room %} &middot; CR NO {{ row.court_room }}{% endif %}
+                  </div>
+                  {% endif %}
+                  {% if row.columns %}
+                  <table class="entry-table">
+                    <thead>
+                      <tr><th>Case</th><th>Parties</th><th>Advocates</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        {% for key in ['case', 'parties', 'advocates'] %}
+                        <td>{% for line in row.columns[key] %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                        {% endfor %}
+                      </tr>
+                    </tbody>
+                  </table>
+                  {% else %}
+                  <pre class="entry-text">{{ row.lines | join('\n') }}{% if row.truncated %}
+… entry continues in the PDF{% endif %}</pre>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </td>
+            </tr>
+            {% endif %}
             {% endfor %}
           </tbody>
         </table>
         {% else %}
         <h3 class="status-message status-error">
-          ❌ No search results found{% if issues %} in the lists that could be read{% endif %}.
+          ❌ No search results found in the {{ lists_read }} cause-list PDF{{ '' if lists_read == 1 else 's' }}{% if issues %} that could be read{% endif %}.
         </h3>
+        {% endif %}
+        {% if not has_regular_pdf %}
+        <p class="status-note">
+          No Regular cause list PDF was published for this date{% if case_lookup %} &mdash; see the Judge-Wise Regular Cause List below{% endif %}.
+        </p>
         {% endif %}
       </div>
 
@@ -254,6 +423,11 @@
       <div class="section">
         <hr />
         <h2><a href="{{ url }}">{{ title }}</a></h2>
+        {% if outcome.bench_name %}
+        <p class="bench-note">
+          Bench checked: {{ outcome.bench_name }}{% if outcome.bench_source %} (from {{ outcome.bench_source }}){% endif %}
+        </p>
+        {% endif %}
         {% if outcome.status == "unavailable" %}
         <h3 class="status-message status-warning">
           ⚠️ Could not check {{ title }}: {{ outcome.error }}

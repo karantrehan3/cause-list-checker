@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.managers.case_manager import CaseLookupResult
+from app.managers.cause_list_entries import ListedBench
 from app.managers.cause_list_manager import OLD_SOURCE, CauseListResult
 from tests.fakes import CASE
 
@@ -155,3 +156,72 @@ def test_api_send_report_wraps_email_errors():
         controllers.send_report(
             emailer, ["a@b.c"], {"subject": "s", "context": {"issues": ["i"]}}
         )
+
+
+MATCHED_RESULT = {
+    **PDF,
+    "pdf_name": "Regular | Supplementary List",
+    "found_pages": {"x": [113]},
+    "matches": [
+        {
+            "is_entry": True,
+            "case_no": "CR-2227-2010",
+            "item_no": "404",
+            "page": 113,
+            "bench": ["HON'BLE MR. JUSTICE VIRINDER AGGARWAL"],
+        }
+    ],
+}
+EXPECTED_BENCH = ListedBench(
+    name="HON'BLE MR. JUSTICE VIRINDER AGGARWAL",
+    source="Regular | Supplementary List, item 404, p. 113",
+    is_regular_list=True,
+)
+
+
+def test_lambda_passes_bench_found_in_pdf_to_case_lookup(lambda_parts):
+    import lambda_handler
+
+    cause_lists, cases, searcher, emailer, error_handler = lambda_parts
+    searcher.search_pdf.return_value = [MATCHED_RESULT]
+
+    lambda_handler.process_date(
+        cause_lists,
+        cases,
+        searcher,
+        emailer,
+        error_handler,
+        ["x"],
+        "05/11/2026",
+        ["a@b.c"],
+        CASE,
+    )
+
+    cases.lookup.assert_called_once_with(
+        CASE, ["x"], "05/11/2026", listed_bench=EXPECTED_BENCH
+    )
+
+
+def test_api_passes_bench_found_in_pdf_to_case_lookup():
+    import asyncio
+
+    from app.routes.search.cause_list import controllers
+
+    queued = controllers.QueuedSearch(["x"], "05/11/2026", ["a@b.c"], CASE)
+    cause_lists = MagicMock()
+    cause_lists.fetch.return_value = CauseListResult(new_pdfs=[PDF])
+    cases = MagicMock()
+    cases.lookup.return_value = None
+    with (
+        patch.object(controllers, "CauseListManager", return_value=cause_lists),
+        patch.object(controllers, "CaseManager", return_value=cases),
+        patch.object(controllers, "Emailer", return_value=MagicMock()),
+        patch.object(
+            controllers.PDFSearcher, "search_pdf", return_value=[MATCHED_RESULT]
+        ),
+    ):
+        assert asyncio.run(controllers.process_single_search(queued)) is True
+
+    cases.lookup.assert_called_once_with(
+        CASE, ["x"], "05/11/2026", listed_bench=EXPECTED_BENCH
+    )

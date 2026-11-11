@@ -115,6 +115,13 @@ def test_search_no_match_and_blank_terms():
     assert search_entries([OTHER, ENTRY], ["", None]) == []
 
 
+def test_search_names_match_whole_words_like_the_pdf_search():
+    chander = {**ENTRY, "pet_name": "KRISHAN CHANDER (DECEASED) THRU LRS"}
+    chand = {**ENTRY, "pet_name": "KRISHAN CHAND V/S TARSEM CHAND"}
+
+    assert search_entries([chander, chand], ["Krishan Chand"]) == [chand]
+
+
 def test_manager_unavailable_reports_one_issue_per_case():
     from app.managers.judge_cause_list_manager import JudgeCauseListManager
 

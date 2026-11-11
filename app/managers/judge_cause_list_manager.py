@@ -10,9 +10,12 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from app.clients.court_http import CourtSiteError
 from app.clients.phhc_api import PhhcApi
+from app.managers.cause_list_entries import ListedBench, compile_term
 from app.services.emailer import case_html
 
 FOUND, NOT_FOUND, UNAVAILABLE = "found", "not_found", "unavailable"
+LISTING_HISTORY_SOURCE = "case listing history"
+ASSIGNED_BENCH_SOURCE = "case's assigned bench"
 
 Entry = Dict[str, Any]
 
@@ -116,9 +119,12 @@ def entry_search_text(entry: Entry) -> str:
 
 
 def search_entries(entries: List[Entry], search_terms: List[str]) -> List[Entry]:
-    """Entries where any search term appears (case-insensitive), incl. connected cases."""
-    terms = [t.lower() for t in search_terms if t]
-    return [e for e in entries if any(t in entry_search_text(e) for t in terms)]
+    """Entries where any search term appears, incl. connected cases.
+
+    Same rules as the PDF search: names match whole words, case numbers substrings.
+    """
+    patterns = [compile_term(t) for t in search_terms if t and t.strip()]
+    return [e for e in entries if any(p.search(entry_search_text(e)) for p in patterns)]
 
 
 # --- Checks against the court API ---------------------------------------------
@@ -130,6 +136,7 @@ class JudgeListOutcome:
     error: Optional[str] = None  # why the list could not be checked
     entries_checked: int = 0
     bench_name: str = ""
+    bench_source: str = ""  # where the bench came from, shown in the email
 
     @property
     def status(self) -> str:
@@ -155,10 +162,13 @@ class JudgeCauseListManager:
         listing_entry: Optional[Dict],
         search_terms: List[str],
         date: str,
+        listed_bench: Optional[ListedBench] = None,
     ) -> JudgeListsResult:
         """Search the daily and regular lists of the bench hearing the case on `date`."""
         result = JudgeListsResult()
-        judge_code, bench_name, error = self.resolve_judge(case_data, listing_entry)
+        judge_code, bench_name, error, source = self.resolve_judge(
+            case_data, listing_entry, listed_bench
+        )
         if error:
             return self.unavailable(error, case_data)
 
@@ -197,16 +207,38 @@ class JudgeCauseListManager:
                 ),
                 bench_name=bench_name,
             )
+        elif (
+            regular_list_missing
+            and listed_bench
+            and listed_bench.is_regular_list
+            and source == listed_bench.source
+        ):
+            # Same idea, but the evidence is the case printed in a Regular cause-list PDF.
+            result.regular = JudgeListOutcome(
+                html=case_html.build_pdf_listing_html(
+                    listed_bench.name, listed_bench.source, date
+                ),
+                bench_name=bench_name,
+            )
+        result.daily.bench_source = result.regular.bench_source = source
         return result
 
     def resolve_judge(
-        self, case_data: Dict, listing_entry: Optional[Dict]
-    ) -> Tuple[Optional[int], str, Optional[str]]:
-        """(judge_code, bench_name, error). Prefers the bench the case is listed before on the date."""
+        self,
+        case_data: Dict,
+        listing_entry: Optional[Dict],
+        listed_bench: Optional[ListedBench] = None,
+    ) -> Tuple[Optional[int], str, Optional[str], str]:
+        """(judge_code, bench_name, error, source) for the bench hearing the case.
+
+        Order: the case's listing history for the date, then the bench printed
+        above the case in a cause-list PDF (listing history often lags), then
+        the case's assigned bench.
+        """
         try:
             judges = self.api.active_judges()
         except CourtSiteError as e:
-            return None, "", f"judge list unavailable ({e.reason})"
+            return None, "", f"judge list unavailable ({e.reason})", ""
 
         if listing_entry:  # the bench the case is actually listed before on this date
             details = listing_entry.get("benchDetails") or {}
@@ -214,19 +246,25 @@ class JudgeCauseListManager:
             code = judge_code_for_bench(listing_entry.get("bench_code"), judges)
             code = code or match_judge_code(bench_name, judges)
             if code:
-                return code, bench_name, None
+                return code, bench_name, None, LISTING_HISTORY_SOURCE
+
+        if listed_bench:
+            code = match_judge_code(listed_bench.name, judges)
+            if code:
+                return code, listed_bench.name, None, listed_bench.source
 
         bench_name = case_data.get("bench_name", "")
         if not bench_name:
-            return None, "", "case has no bench assigned"
+            return None, "", "case has no bench assigned", ""
         code = match_judge_code(bench_name, judges)
         if not code:
             return (
                 None,
                 bench_name,
                 f"could not match bench '{bench_name}' to an active judge",
+                "",
             )
-        return code, bench_name, None
+        return code, bench_name, None, ASSIGNED_BENCH_SOURCE
 
     @staticmethod
     def unavailable(reason: str, case_data: Optional[Dict] = None) -> JudgeListsResult:

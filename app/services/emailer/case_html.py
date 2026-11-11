@@ -4,6 +4,7 @@ Styled inline to match new.phhc.gov.in (email clients ignore most <style> rules)
 """
 
 from datetime import datetime
+from html import escape
 from typing import Dict, List, Optional
 
 from app.config import settings
@@ -346,3 +347,25 @@ def build_listing_found_html(listing_entry: Dict, judge_name: str, date: str) ->
 <td>{date}</td><td>{cl_type}</td><td>{sr_no}</td><td>{bench}</td>
   </tr>
 </table></center>"""
+
+
+def build_pdf_listing_html(bench_name: str, source: str, date: str) -> str:
+    """Confirmation that the case is printed in a Regular cause-list PDF.
+
+    Used when the judge-wise regular list for the date is not published yet.
+    """
+    return f"""<center>
+<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 700px;" class="case-listing-details">
+  <tr><td colspan="3" style="text-align:center; font-weight:bold; background-color: #f2f2f2;">
+REGULAR CAUSE LIST (PDF) — {_text(bench_name)} — {_text(date)}
+  </td></tr>
+  <tr><th>Date</th><th>Listed in</th><th>Bench</th></tr>
+  <tr style="background-color: #ffff00;">
+<td>{_text(date)}</td><td>{_text(source)}</td><td>{_text(bench_name)}</td>
+  </tr>
+</table></center>"""
+
+
+def _text(value: str) -> str:
+    """Escape for HTML element text (quotes are safe there)."""
+    return escape(value, quote=False)
