@@ -345,10 +345,6 @@ def build_listing_found_html(listing_entry: Dict, judge_name: str, date: str) ->
 
 
 def build_pdf_listing_html(bench_name: str, source: str, date: str) -> str:
-    """Confirmation that the case is printed in a Regular cause-list PDF.
-
-    Used when the judge-wise regular list for the date is not published yet.
-    """
     return _listing_table(
         f"REGULAR CAUSE LIST (PDF) — {bench_name} — {date}",
         ["Date", "Listed in", "Bench"],
@@ -357,7 +353,6 @@ def build_pdf_listing_html(bench_name: str, source: str, date: str) -> str:
 
 
 def _listing_table(title: str, headers: List[str], cells: List[Any]) -> str:
-    """One highlighted row confirming a listing, under a title row."""
     head = "".join(f"<th>{_text(h)}</th>" for h in headers)
     row = "".join(f"<td>{_text(c)}</td>" for c in cells)
     return f"""<center>
@@ -373,5 +368,4 @@ def _listing_table(title: str, headers: List[str], cells: List[Any]) -> str:
 
 
 def _text(value: Any) -> str:
-    """Escape for HTML element text (quotes are safe there)."""
     return escape(str(value), quote=False)

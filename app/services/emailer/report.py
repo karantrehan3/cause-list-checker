@@ -64,13 +64,6 @@ def _entry_key(row: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
 def arrange_results(
     results: List[Dict[str, Any]], search_terms: List[str]
 ) -> List[Dict[str, Any]]:
-    """Results ready for the email table, as new dicts (inputs are not changed).
-
-    Each gets `entries` (numbered listings), `context_hits` (text outside any
-    entry) and `hidden_duplicates`. The Complete List repeats entries from the
-    other lists, so those are hidden there. Lists where a case number matched
-    come first.
-    """
     case_terms = {term for term in search_terms if is_case_number(term)}
     shown_elsewhere = {
         _entry_key(row)
@@ -106,12 +99,6 @@ def arrange_results(
 def listing_summary(
     case_lookup: Optional[CaseLookupResult], arranged: List[Dict[str, Any]]
 ) -> Optional[Dict[str, Any]]:
-    """Where the searched case is listed, from evidence tied to its case number.
-
-    A cause-list PDF entry with the case number wins (it has page and court
-    room); otherwise the case's listing history entry for the date. Judge-wise
-    "found" is not used: a name can match a different case there.
-    """
     if not case_lookup:
         return None
     return _summary_from_pdf(case_lookup.case_id, arranged) or _summary_from_history(

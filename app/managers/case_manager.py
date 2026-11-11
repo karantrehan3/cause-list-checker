@@ -25,18 +25,16 @@ class CaseLookupResult:
     daily: JudgeListOutcome = field(default_factory=JudgeListOutcome)
     regular: JudgeListOutcome = field(default_factory=JudgeListOutcome)
     issues: List[str] = field(default_factory=list)
-    listing_entry: Optional[Dict] = None  # listing history entry for the date
+    listing_entry: Optional[Dict] = None
 
 
 def case_id_for(case_details: Dict[str, str]) -> str:
-    """{"type": "RSA", "no": "4610", "year": "2011"} -> "RSA-4610-2011"."""
     return f"{case_details['type']}-{case_details['no']}-{case_details['year']}"
 
 
 def listed_bench_from(
     results: List[Dict[str, Any]], case_details: Optional[Dict[str, str]]
 ) -> Optional[ListedBench]:
-    """Bench printed above the searched case in the cause-list PDFs, if found."""
     if not case_details:
         return None
     return listed_bench_for_case(results, case_id_for(case_details))

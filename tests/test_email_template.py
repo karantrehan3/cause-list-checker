@@ -134,9 +134,9 @@ def test_matched_entries_sit_in_a_detail_row_under_their_list():
     details = html[detail_row:]
     assert "HON&#39;BLE MR. JUSTICE VIRINDER AGGARWAL" in details
     assert "CR NO 12" in details
-    assert "&lt;AND&gt;" in details  # PDF text is escaped, never raw HTML
+    assert "&lt;AND&gt;" in details
     assert "entry continues in the PDF" in details
-    assert "notice about KRISHAN CHAND" not in html  # context hits stay one line
+    assert "notice about KRISHAN CHAND" not in html
 
 
 def test_complete_list_notes_entries_hidden_as_duplicates():

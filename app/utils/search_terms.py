@@ -1,15 +1,8 @@
-"""How a search term matches court text, shared by the PDF and judge-wise searches.
-
-A term with a digit is a case number ("RSA-4610-2011"): matched anywhere, and
-lists wrap these at hyphens ("FAO-6127-⏎2026"), so whitespace around hyphens is
-allowed. Any other term is a name: matched as whole words, so "Krishan Chand"
-does not hit "KRISHAN CHANDER". Names can wrap too ("VISHNU⏎MITTAR").
-"""
-
 import re
 from typing import Pattern
 
 _HAS_DIGIT = re.compile(r"\d")
+# Lists wrap case numbers at hyphens: "FAO-6127-⏎2026".
 _HYPHEN = re.compile(r"\s*-\s*")
 
 

@@ -224,7 +224,6 @@
         date }}
       </h1>
 
-      <!-- Summary: where the searched case is listed, when we know -->
       {% if listing_summary %}
       {% set s = listing_summary %}
       <h3 class="status-message status-success listing-summary">
@@ -259,7 +258,6 @@
         {% if results %}
         <h3 class="status-message status-success">✅ Search results found.</h3>
 
-        <!-- Search Results Table: one row per list, its matched entries right under it -->
         <table class="results-table">
           <thead>
             <tr>

@@ -4,6 +4,7 @@ import json
 
 import lambda_handler
 from tests.e2e.conftest import RECIPIENT
+from tests.e2e.fake_world import OLD_PDF_A, PDF_WITH_CASE_ENTRY
 from tests.fakes import ENTRY, wrapped
 
 DETAIL = {
@@ -25,6 +26,23 @@ def test_eventbridge_event_runs_search_and_emails(world):
     assert sent.recipients == [RECIPIENT]
     assert "✅ Search results found." in sent.html
     assert "✅ Search term found in Judge-Wise Cause List" in sent.html
+
+
+def test_lambda_email_shows_the_listing_and_checks_the_bench_printed_above_it(world):
+    world.route(
+        OLD_PDF_A, 200, PDF_WITH_CASE_ENTRY, {"Content-Type": "application/pdf"}
+    )
+
+    lambda_handler.handler({"detail": DETAIL}, None)
+
+    html = " ".join(world.only_email().html.split())
+    assert (
+        "CR-2227-2010 is listed on 05/11/2026: Ordinary · Main List, item 12, "
+        "HON&#39;BLE MR. JUSTICE OTHER JUDGE, CR NO 3, p. 1 (from cause-list PDF)"
+    ) in html
+    assert "<th>Case</th><th>Parties</th><th>Advocates</th>" in html
+    assert "HARYANA WAKF BOARD V/S VISHNU MITTAR" in html
+    assert world.requested(r"getCauseList\?.*bench_judge_id=701")
 
 
 def test_function_url_event_body_is_supported(world):

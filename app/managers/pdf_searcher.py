@@ -64,8 +64,7 @@ class PDFSearcher:
                                     flush=True,
                                 )
                                 page_texts.append("")  # keep page numbers aligned
-                        # Inside the `with`: line positions are read lazily, only for
-                        # pages that hold a matched entry.
+                        # Must stay inside `with`: positions are read lazily.
                         found_pages, matches = find_entries(
                             page_texts,
                             self.search_terms,
@@ -133,11 +132,7 @@ class PDFSearcher:
 
     @staticmethod
     def _line_x(document: Any, page_no: int) -> List[float]:
-        """x of each non-blank line on a 1-based page, in page.get_text() order.
-
-        Same text flags as get_text(), so lines come out identically; an empty
-        list (no columns, plain text shown) if the page cannot be read.
-        """
+        # Same flags as get_text(), or lines stop lining up with the text.
         try:
             blocks = document.load_page(page_no - 1).get_text(
                 "dict", flags=fitz.TEXTFLAGS_TEXT

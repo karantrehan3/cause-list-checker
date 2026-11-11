@@ -88,8 +88,7 @@ def process_date(
             results = searcher.search_pdf(pdfs)
             print(f"PROGRESS! Search complete for {date}: {len(results)} result(s)")
 
-        # After the PDF search: the bench printed above the case is the fallback
-        # when the case's listing history has no entry for this date yet.
+        # After the PDF search, which supplies the bench for judge-wise lists.
         case_lookup = case_manager.lookup(
             case_details,
             search_terms,

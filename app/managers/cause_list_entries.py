@@ -1,11 +1,3 @@
-"""Find search terms in cause-list text and cut out the entry each hit belongs to.
-
-Cause lists are a sequence of numbered entries ("404 ** RSA-4610-2011 ...")
-grouped under bench headers ("HON'BLE MR. JUSTICE ..."). For every hit we
-return the whole entry plus its bench and court room, so the email shows
-the exact listing instead of just a page number.
-"""
-
 import re
 from bisect import bisect_right
 from dataclasses import dataclass
@@ -14,9 +6,8 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 from app.managers.cause_list_manager import REGULAR_LIST, pdf_list_type
 from app.utils.search_terms import compile_term
 
-# "404 ** RSA-..", "406.1 WITH RSA-..", "501 ***", "218 *", "141 V FARIDKOT", "732 II (ON BAIL)"
 ENTRY_START = re.compile(r"^(\d+(?:\.\d+)?)\s+(?:\*{1,3}|WITH|[IVX]{1,4})(?=\s|$)")
-# Upper-case only, so notice text like "Hon'ble the Chief Justice has ordered" is skipped.
+# Upper-case only: notice text ("Hon'ble the Chief Justice has ordered") is not a bench.
 BENCH_HEADER = re.compile(r"^HON[’']?BLE\s.*\b(?:JUSTICE|BENCH)\b")
 LIST_TITLE = re.compile(r"\bDATED\s+\d{1,2}/\d{1,2}/\d{4}")
 COURT_ROOM = re.compile(r"\bCR\s*NO\.?\s*(\w+)", re.I)
@@ -25,30 +16,26 @@ CASE_NO = re.compile(r"\b[A-Z][A-Z.()]*(?:-[A-Z]+)*-\d+(?:-[A-Z]+)?-\d{4}\b")
 MAX_ENTRY_LINES = 30
 CONTEXT_LINES = 3
 COURT_ROOM_LOOKBACK = 4
-# Columns start at fixed x positions; lines inside one column differ by < ~30pt.
 COLUMN_GAP = 40
 MIN_COLUMNS = 3
 
-# x position of every non-blank line on a 1-based page, in get_text() order.
 LineX = Callable[[int], List[float]]
 
 
 class Line(NamedTuple):
-    page: int  # 1-based
-    index: int  # position among the page's non-blank lines
-    text: str  # whitespace collapsed
+    page: int
+    index_on_page: int
+    text: str
 
 
 class Span(NamedTuple):
     start: int
-    end: int  # exclusive
-    is_entry: bool  # False: a ±CONTEXT_LINES window outside any entry
+    end: int
+    is_entry: bool
 
 
 @dataclass(frozen=True)
 class ListedBench:
-    """The bench a case is listed before, as printed in a cause-list PDF."""
-
     name: str
     source: str
     is_regular_list: bool = False
@@ -57,11 +44,6 @@ class ListedBench:
 def find_entries(
     pages: List[str], terms: List[str], line_x: Optional[LineX] = None
 ) -> Tuple[Dict[str, List[int]], List[Dict[str, Any]]]:
-    """({term: [pages]}, [matched rows]) for one cause-list PDF.
-
-    `line_x` is only called for pages holding a matched entry, to split it into
-    columns; positions are slower to extract than text, and most pages never need them.
-    """
     lines = _clean_lines(pages)
     text = "\n".join(line.text for line in lines)
     line_starts = _line_offsets(lines)
@@ -87,7 +69,6 @@ def find_entries(
 def listed_bench_for_case(
     results: List[Dict[str, Any]], case_id: str
 ) -> Optional[ListedBench]:
-    """Bench of the first matched entry whose case number is `case_id`."""
     for result in results:
         for row in result.get("matches", []):
             same_case = (row.get("case_no") or "").upper() == case_id.upper()
@@ -121,7 +102,6 @@ def _is_boundary(text: str) -> bool:
 
 
 def _span(lines: List[Line], hit_idx: int) -> Span:
-    """The entry holding the hit, or a ±CONTEXT_LINES window outside entries."""
     start = _entry_start(lines, hit_idx)
     if start is None:
         return Span(
@@ -183,7 +163,6 @@ def _first_case_no(texts: List[str]) -> Optional[str]:
 
 
 def _bench_for(lines: List[Line], start: int) -> Tuple[List[str], Optional[str]]:
-    """Bench header block above the entry (two lines = division bench) and its CR NO."""
     last = start - 1
     while last >= 0 and not BENCH_HEADER.match(lines[last].text):
         last -= 1
@@ -195,7 +174,6 @@ def _bench_for(lines: List[Line], start: int) -> Tuple[List[str], Optional[str]]
         first -= 1
     bench = [line.text for line in lines[first : last + 1]]
 
-    # Joined, because the title often wraps between "CR NO" and the number.
     title_lines = lines[max(0, first - COURT_ROOM_LOOKBACK) : first]
     rooms = COURT_ROOM.findall("\n".join(line.text for line in title_lines))
     if not rooms or rooms[-1].lower() == "none":
@@ -204,18 +182,11 @@ def _bench_for(lines: List[Line], start: int) -> Tuple[List[str], Optional[str]]
 
 
 class _ColumnSplitter:
-    """Case / Parties / Advocates cells from line x positions, text as printed.
-
-    Right-most column is Advocates, the one before it Parties, everything left
-    of that is the Case column. Positions are fetched once per page, and only
-    trusted when their count matches the page's text lines.
-    """
-
     def __init__(self, lines: List[Line], line_x: Optional[LineX]):
         self._line_x = line_x
         self._page_sizes: Dict[int, int] = {}
         for line in lines:
-            self._page_sizes[line.page] = line.index + 1
+            self._page_sizes[line.page] = line.index_on_page + 1
         self._cache: Dict[int, Optional[List[float]]] = {}
 
     def split(self, entry: List[Line]) -> Optional[Dict[str, List[str]]]:
@@ -248,4 +219,4 @@ class _ColumnSplitter:
                 xs if len(xs) == self._page_sizes.get(line.page) else None
             )
         xs = self._cache[line.page]
-        return xs[line.index] if xs else None
+        return xs[line.index_on_page] if xs else None

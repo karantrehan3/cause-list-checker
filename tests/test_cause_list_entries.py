@@ -1,5 +1,3 @@
-"""Entry extraction from cause-list page text (layouts copied from real PHHC lists)."""
-
 from app.managers.cause_list_entries import (
     ListedBench,
     find_entries,
@@ -235,7 +233,6 @@ def test_long_entry_is_truncated():
     assert len(rows[0]["lines"]) == 30
 
 
-# (x, text) per line in PDF reading order, copied from the real 12/11/2026 lists.
 REGULAR_404_POSITIONED = [
     (28, "404 ** RSA-4610-2011"),
     (57, "SANGRUR"),
@@ -266,7 +263,6 @@ ORDINARY_296_POSITIONED = [
 
 
 def _positioned(*pages):
-    """(page texts, line_x) as PDFSearcher passes them, plus the pages asked for."""
     asked = []
 
     def line_x(page_no):

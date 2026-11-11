@@ -246,7 +246,6 @@ def test_unexpected_error_is_recorded():
 
 
 def _entry_pdf_bytes() -> bytes:
-    """One page laid out like a Regular list entry: Case / Parties / Advocates."""
     doc = fitz.open()
     page = doc.new_page()
     for x, y, text in [

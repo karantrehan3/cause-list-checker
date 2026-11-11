@@ -47,6 +47,29 @@ PDF_WITHOUT_CASE = make_pdf(
     "URGENT SUPPLEMENTARY LIST", "1. CR-1-2026 STATE OF PUNJAB VS SOMEONE"
 )
 
+
+def make_laid_out_pdf(lines: List[Tuple[float, float, str]]) -> bytes:
+    doc = fitz.open()
+    page = doc.new_page()
+    for x, y, text in lines:
+        page.insert_text((x, y), text, fontsize=8)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+PDF_WITH_CASE_ENTRY = make_laid_out_pdf(
+    [
+        (150, 60, "ORDINARY CAUSE LIST DATED 05/11/2026 CR NO 3"),
+        (180, 80, "HON'BLE MR. JUSTICE OTHER JUDGE"),
+        (28, 100, "12 ** CR-2227-2010"),
+        (57, 112, "KAITHAL"),
+        (168, 100, "HARYANA WAKF BOARD V/S VISHNU MITTAR"),
+        (362, 100, "JAI BHAGWAN,"),
+        (28, 130, "13 ** CR-1-2026"),
+    ]
+)
+
 Body = Union[bytes, str, dict, list, None]
 Route = Tuple[int, Body, Dict[str, str]]
 

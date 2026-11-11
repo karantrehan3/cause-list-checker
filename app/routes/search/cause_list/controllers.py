@@ -112,8 +112,7 @@ async def process_single_search(queued_search: QueuedSearch) -> bool:
         if not pdfs:
             print(f"ALERT! No Cause Lists found for {queued_search.date}", flush=True)
 
-        # Step 3: Case checks, after the PDFs so the judge-wise lists can use the
-        # bench the case is printed under when the listing history lags behind
+        # Step 3: Case checks; after the PDFs, which supply the bench
         case_lookup = await asyncio.to_thread(
             case_manager.lookup,
             queued_search.case_details,

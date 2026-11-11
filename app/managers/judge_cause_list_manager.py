@@ -120,10 +120,6 @@ def entry_search_text(entry: Entry) -> str:
 
 
 def search_entries(entries: List[Entry], search_terms: List[str]) -> List[Entry]:
-    """Entries where any search term appears, incl. connected cases.
-
-    Same rules as the PDF search: names match whole words, case numbers substrings.
-    """
     patterns = [compile_term(t) for t in search_terms if t and t.strip()]
     return [e for e in entries if any(p.search(entry_search_text(e)) for p in patterns)]
 
@@ -137,7 +133,7 @@ class JudgeListOutcome:
     error: Optional[str] = None  # why the list could not be checked
     entries_checked: int = 0
     bench_name: str = ""
-    bench_source: str = ""  # where the bench came from, shown in the email
+    bench_source: str = ""
 
     @property
     def status(self) -> str:
@@ -148,11 +144,9 @@ class JudgeListOutcome:
 
 @dataclass(frozen=True)
 class ResolvedBench:
-    """The bench whose judge-wise lists are checked, and why it was chosen."""
-
     judge_code: Optional[int]
     name: str
-    source: str = ""  # LISTING_HISTORY_SOURCE, a PDF entry, or ASSIGNED_BENCH_SOURCE
+    source: str = ""
     error: Optional[str] = None
 
 
@@ -205,7 +199,6 @@ class JudgeCauseListManager:
             result.regular.status == NOT_FOUND and not result.regular.entries_checked
         )
         if regular_list_missing:
-            # Any request failure stays in result.issues, so the banner still reports it.
             result.regular = (
                 self._listed_elsewhere(listing_entry, listed_bench, bench, date)
                 or result.regular
@@ -219,9 +212,6 @@ class JudgeCauseListManager:
         bench: ResolvedBench,
         date: str,
     ) -> Optional[JudgeListOutcome]:
-        """'Found' for an unpublished regular list, when other evidence says listed:
-        the case's listing history for the date, or the case printed in a Regular
-        cause-list PDF whose bench is the one checked."""
         if listing_entry:
             html = case_html.build_listing_found_html(listing_entry, bench.name, date)
         elif (
@@ -244,9 +234,6 @@ class JudgeCauseListManager:
         listing_entry: Optional[Dict],
         listed_bench: Optional[ListedBench] = None,
     ) -> ResolvedBench:
-        """The bench hearing the case: the case's listing history for the date, then
-        the bench printed above the case in a cause-list PDF (listing history often
-        lags), then the case's assigned bench."""
         try:
             judges = self.api.active_judges()
         except CourtSiteError as e:
